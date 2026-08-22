@@ -26,6 +26,7 @@ const scoreboard = document.querySelector(".scoreboard");
 const categoryTabs = document.querySelector(".category-tabs");
 const timerBox = document.querySelector(".timer");
 const timerElement = document.querySelector("#timer");
+const timerProgress = document.querySelector("#timer-progress");
 const speakButton = document.querySelector("#speak-question");
 const voiceButton = document.querySelector("#voice-answer");
 const voiceStatus = document.querySelector("#voice-status");
@@ -61,10 +62,12 @@ function startTimer() {
   stopTimer();
   timeLeft = 7;
   timerElement.textContent = timeLeft;
+  timerProgress.style.width = "100%";
   timerBox.classList.remove("warning");
   timerId = window.setInterval(() => {
     timeLeft -= 1;
     timerElement.textContent = timeLeft;
+    timerProgress.style.width = `${(timeLeft / 7) * 100}%`;
     if (timeLeft <= 3) timerBox.classList.add("warning");
     if (timeLeft <= 0) { stopTimer(); timeOut(); }
   }, 1000);
