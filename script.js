@@ -94,6 +94,14 @@ function choose(button) {
       if (!item.querySelector(".answer-label")) item.insertAdjacentHTML("beforeend", `<span class="answer-label">${item.dataset.country}</span>`);
     });
   }
+  if (category === "flag-country") {
+    answers.querySelectorAll("button").forEach((item) => {
+      if (item.querySelector(".answer-flag")) return;
+      const code = COUNTRY_DATA.find(([name]) => name === item.dataset.answer)?.[1];
+      if (code) item.insertAdjacentHTML("afterbegin", `<img class="answer-flag" src="https://flagcdn.com/w160/${code.toLowerCase()}.png" alt="${item.dataset.answer} 국기">`);
+      item.insertAdjacentHTML("beforeend", `<span class="answer-label">${item.dataset.answer}</span>`);
+    });
+  }
   if (correct) { score += 1; streak += 1; button.classList.add("correct"); feedback.textContent = "정답입니다!"; feedback.className = "feedback good"; }
   else { streak = 0; button.classList.add("wrong"); feedback.textContent = `아쉬워요. 정답은 ${correctAnswer}입니다.`; feedback.className = "feedback bad"; }
   scoreElement.textContent = score;
