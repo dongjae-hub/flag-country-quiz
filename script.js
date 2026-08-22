@@ -26,14 +26,40 @@ let current = null;
 
 function shuffle(items) { return [...items].sort(() => Math.random() - .5); }
 
-function newQuestion() {
+function loadFlag(code) {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve(`https://flagcdn.com/w320/${code.toLowerCase()}.png`);
+    image.onerror = () => reject(new Error(`Flag image unavailable: ${code}`));
+    image.src = `https://flagcdn.com/w320/${code.toLowerCase()}.png`;
+  });
+}
+
+async function newQuestion() {
   if (question >= TOTAL) return finish();
+  feedback.textContent = "국기를 불러오는 중입니다…";
+  feedback.className = "feedback";
+  let correct;
+  let imageUrl;
+  for (const candidate of shuffle(COUNTRIES)) {
+    try {
+      imageUrl = await loadFlag(candidate[1]);
+      correct = candidate;
+      break;
+    } catch (error) {
+      console.warn(error.message);
+    }
+  }
+  if (!correct) {
+    feedback.textContent = "국기 이미지를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.";
+    feedback.className = "feedback bad";
+    return;
+  }
   question += 1;
-  const correct = COUNTRIES[Math.floor(Math.random() * COUNTRIES.length)];
   const wrong = shuffle(COUNTRIES.filter(([name]) => name !== correct[0])).slice(0, 3);
   current = correct;
   questionNumber.textContent = `${question} / ${TOTAL}`;
-  flag.innerHTML = `<img src="https://flagcdn.com/w320/${correct[1].toLowerCase()}.png" alt="${correct[0]} 국기" loading="eager">`;
+  flag.innerHTML = `<img src="${imageUrl}" alt="${correct[0]} 국기" loading="eager">`;
   flag.setAttribute("aria-label", `${correct[0]} 국기`);
   feedback.textContent = "정답을 선택하세요";
   feedback.className = "feedback";
