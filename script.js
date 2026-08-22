@@ -101,7 +101,7 @@ function choose(button) {
     });
   }
   if (correct) { score += 1; streak += 1; button.classList.add("correct"); feedback.textContent = "정답입니다!"; feedback.className = "feedback good"; }
-  else { streak = 0; button.classList.add("wrong"); feedback.textContent = `아쉬워요. 정답은 ${correctAnswer}입니다.`; feedback.className = "feedback bad"; }
+  else { streak = 0; button.classList.add("wrong"); feedback.textContent = `오답입니다. 정답은 ${correctAnswer}입니다.`; feedback.className = "feedback bad"; }
   scoreElement.textContent = score;
   streakElement.textContent = streak;
   next.hidden = false;
