@@ -6,11 +6,7 @@ const COUNTRY_DATA = [
   ["사우디아라비아","SA"],["아랍에미리트","AE"],["카타르","QA"],["쿠웨이트","KW"],["바레인","BH"],["오만","OM"],["예멘","YE"],["이라크","IQ"],["이란","IR"],["이스라엘","IL"],["요르단","JO"],["레바논","LB"],["시리아","SY"],["아프가니스탄","AF"],["카자흐스탄","KZ"],["우즈베키스탄","UZ"],["투르크메니스탄","TM"],["키르기스스탄","KG"],["타지키스탄","TJ"],["아르메니아","AM"],["아제르바이잔","AZ"],["조지아","GE"],["팔레스타인","PS"],
 ];
 
-function flagEmoji(code) {
-  return [...code].map((letter) => String.fromCodePoint(127397 + letter.charCodeAt(0))).join("");
-}
-
-const COUNTRIES = COUNTRY_DATA.map(([name, code]) => [name, flagEmoji(code)]);
+const COUNTRIES = COUNTRY_DATA.map(([name, code]) => [name, code]);
 const TOTAL = 10;
 const flag = document.querySelector("#flag");
 const answers = document.querySelector("#answers");
@@ -37,7 +33,7 @@ function newQuestion() {
   const wrong = shuffle(COUNTRIES.filter(([name]) => name !== correct[0])).slice(0, 3);
   current = correct;
   questionNumber.textContent = `${question} / ${TOTAL}`;
-  flag.textContent = correct[1];
+  flag.innerHTML = `<img src="https://flagcdn.com/w320/${correct[1].toLowerCase()}.png" alt="${correct[0]} 국기" loading="eager">`;
   flag.setAttribute("aria-label", `${correct[0]} 국기`);
   feedback.textContent = "정답을 선택하세요";
   feedback.className = "feedback";
