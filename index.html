@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="국기를 보고 나라 이름을 맞히는 미니 퀴즈 게임">
+    <title>Flag Quiz · 국기 나라 맞히기</title>
+    <link rel="stylesheet" href="styles.css?v=1">
+    <script type="module" src="script.js?v=1"></script>
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="hero">
+        <a class="back-link" href="https://dongjae-hub.github.io/">← Lotto Match</a>
+        <p class="eyebrow">FLAG COUNTRY QUIZ</p>
+        <h1>이 국기는<br><span>어느 나라일까요?</span></h1>
+        <p>국기를 보고 정답을 골라보세요. 한 판은 10문제입니다.</p>
+      </header>
+
+      <section class="scoreboard" aria-label="게임 점수">
+        <div><span>문제</span><strong id="question-number">1 / 10</strong></div>
+        <div><span>점수</span><strong id="score">0</strong></div>
+        <div><span>연속 정답</span><strong id="streak">0</strong></div>
+      </section>
+
+      <section class="quiz-card" aria-labelledby="quiz-title">
+        <h2 id="quiz-title" class="sr-only">국기 퀴즈</h2>
+        <div id="flag" class="flag" role="img" aria-label="국기"></div>
+        <p id="prompt" class="prompt">정답을 선택하세요</p>
+        <div id="answers" class="answers"></div>
+        <p id="feedback" class="feedback" role="status" aria-live="polite"></p>
+        <button id="next" class="next-button" type="button" hidden>다음 문제 →</button>
+      </section>
+
+      <section id="result" class="result-card" hidden aria-live="polite">
+        <p class="eyebrow">QUIZ COMPLETE</p>
+        <h2><span id="final-score">0</span> / 10</h2>
+        <p id="result-message"></p>
+        <button id="restart" class="next-button" type="button">다시 시작</button>
+      </section>
+    </main>
+  </body>
+</html>
