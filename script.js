@@ -20,11 +20,19 @@ const scoreElement = document.querySelector("#score");
 const streakElement = document.querySelector("#streak");
 const finalScore = document.querySelector("#final-score");
 const resultMessage = document.querySelector("#result-message");
+const timerElement = document.querySelector("#timer");
+const timerBox = document.querySelector(".timer");
+const speakButton = document.querySelector("#speak-question");
+const voiceButton = document.querySelector("#voice-answer");
+const voiceStatus = document.querySelector("#voice-status");
 let question = 0;
 let score = 0;
 let streak = 0;
 let current = null;
 let category = "flag-country";
+let timerId = null;
+let timeLeft = 7;
+let recognition = null;
 
 function shuffle(items) { return [...items].sort(() => Math.random() - .5); }
 
@@ -35,6 +43,62 @@ function loadFlag(code) {
     image.onerror = () => reject(new Error(`Flag image unavailable: ${code}`));
     image.src = `https://flagcdn.com/w320/${code.toLowerCase()}.png`;
   });
+}
+
+function stopTimer() { if (timerId) window.clearInterval(timerId); timerId = null; }
+
+function startTimer() {
+  stopTimer();
+  timeLeft = 7;
+  timerElement.textContent = timeLeft;
+  timerBox.classList.remove("warning");
+  timerId = window.setInterval(() => {
+    timeLeft -= 1;
+    timerElement.textContent = timeLeft;
+    if (timeLeft <= 3) timerBox.classList.add("warning");
+    if (timeLeft <= 0) { stopTimer(); timeOut(); }
+  }, 1000);
+}
+
+function questionText() {
+  if (category === "flag-country") return "이 국기는 어느 나라일까요?";
+  if (category === "country-flag") return `${current[0]}의 국기는 무엇일까요?`;
+  return `${current[0]}의 수도는 어디일까요?`;
+}
+
+function speakQuestion() {
+  if (!("speechSynthesis" in window) || !current) return;
+  window.speechSynthesis.cancel();
+  const utterance = new SpeechSynthesisUtterance(questionText());
+  utterance.lang = "ko-KR";
+  utterance.rate = 1;
+  window.speechSynthesis.speak(utterance);
+}
+
+function revealAnswerDetails() {
+  if (category === "country-flag" || category === "country-capital") {
+    answers.querySelectorAll("button").forEach((item) => {
+      if (!item.querySelector(".answer-label")) item.insertAdjacentHTML("beforeend", `<span class="answer-label">${item.dataset.country}</span>`);
+    });
+  }
+  if (category === "flag-country") {
+    answers.querySelectorAll("button").forEach((item) => {
+      const code = COUNTRY_DATA.find(([name]) => name === item.dataset.answer)?.[1];
+      if (code) item.innerHTML = `<img class="answer-flag" src="https://flagcdn.com/w160/${code.toLowerCase()}.png" alt="${item.dataset.answer} 국기"><span class="answer-label">${item.dataset.answer}</span>`;
+    });
+  }
+}
+
+function timeOut() {
+  if (!current) return;
+  const correctAnswer = category === "country-capital" ? CAPITALS[current[1]] : current[0];
+  answers.querySelectorAll("button").forEach((item) => { item.disabled = true; if (item.dataset.answer === correctAnswer) item.classList.add("correct"); });
+  revealAnswerDetails();
+  streak = 0;
+  streakElement.textContent = streak;
+  feedback.textContent = `시간 초과입니다. 정답은 ${correctAnswer}입니다.`;
+  feedback.className = "feedback bad";
+  next.hidden = false;
 }
 
 async function newQuestion() {
@@ -82,24 +146,17 @@ async function newQuestion() {
   } else {
     answers.innerHTML = shuffle([correct, ...wrong]).map(([name, code]) => `<button class="answer" type="button" data-answer="${category === "country-capital" ? CAPITALS[code] : name}" data-country="${name}">${category === "country-capital" ? CAPITALS[code] : name}</button>`).join("");
   }
+  startTimer();
+  speakQuestion();
 }
 
 function choose(button) {
+  stopTimer();
   const chosen = button.dataset.answer;
   const correctAnswer = category === "country-capital" ? CAPITALS[current[1]] : current[0];
   const correct = chosen === correctAnswer;
   answers.querySelectorAll("button").forEach((item) => { item.disabled = true; if (item.dataset.answer === correctAnswer) item.classList.add("correct"); });
-  if (category === "country-flag" || category === "country-capital") {
-    answers.querySelectorAll("button").forEach((item) => {
-      if (!item.querySelector(".answer-label")) item.insertAdjacentHTML("beforeend", `<span class="answer-label">${item.dataset.country}</span>`);
-    });
-  }
-  if (category === "flag-country") {
-    answers.querySelectorAll("button").forEach((item) => {
-      const code = COUNTRY_DATA.find(([name]) => name === item.dataset.answer)?.[1];
-      if (code) item.innerHTML = `<img class="answer-flag" src="https://flagcdn.com/w160/${code.toLowerCase()}.png" alt="${item.dataset.answer} 국기"><span class="answer-label">${item.dataset.answer}</span>`;
-    });
-  }
+  revealAnswerDetails();
   if (correct) { score += 1; streak += 1; button.classList.add("correct"); feedback.textContent = "정답입니다!"; feedback.className = "feedback good"; }
   else { streak = 0; button.classList.add("wrong"); feedback.textContent = `오답입니다. 정답은 ${correctAnswer}입니다.`; feedback.className = "feedback bad"; }
   scoreElement.textContent = score;
@@ -108,6 +165,7 @@ function choose(button) {
 }
 
 function finish() {
+  stopTimer();
   document.querySelector(".quiz-card").hidden = true;
   finalScore.textContent = score;
   resultMessage.textContent = score >= 8 ? "대단해요! 국기 박사에 가까워졌습니다." : score >= 5 ? "좋아요! 조금만 더 연습해 보세요." : "다시 도전해서 점수를 높여보세요.";
@@ -121,5 +179,26 @@ document.querySelectorAll("[data-category]").forEach((button) => button.addEvent
   question = 0; score = 0; streak = 0; scoreElement.textContent = "0"; streakElement.textContent = "0"; result.hidden = true; document.querySelector(".quiz-card").hidden = false; newQuestion();
 }));
 next.addEventListener("click", newQuestion);
+ speakButton.addEventListener("click", speakQuestion);
+const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+if (Recognition) {
+  recognition = new Recognition();
+  recognition.lang = "ko-KR";
+  recognition.interimResults = false;
+  recognition.maxAlternatives = 1;
+  recognition.onstart = () => { voiceStatus.textContent = "듣고 있습니다…"; voiceButton.disabled = true; };
+  recognition.onerror = () => { voiceStatus.textContent = "음성을 인식하지 못했습니다."; voiceButton.disabled = false; };
+  recognition.onend = () => { voiceButton.disabled = false; };
+  recognition.onresult = (event) => {
+    const transcript = event.results[0][0].transcript.trim();
+    voiceStatus.textContent = `인식: ${transcript}`;
+    const match = [...answers.querySelectorAll("button")].find((button) => transcript.includes(button.dataset.answer));
+    if (match) choose(match); else feedback.textContent = "선택지와 일치하는 답을 듣지 못했습니다.";
+  };
+  voiceButton.addEventListener("click", () => recognition.start());
+} else {
+  voiceButton.disabled = true;
+  voiceStatus.textContent = "이 브라우저는 음성 답변을 지원하지 않습니다.";
+}
 restart.addEventListener("click", () => { question = 0; score = 0; streak = 0; scoreElement.textContent = "0"; streakElement.textContent = "0"; result.hidden = true; document.querySelector(".quiz-card").hidden = false; newQuestion(); });
 newQuestion();

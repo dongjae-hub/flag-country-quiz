@@ -21,6 +21,7 @@
         <div><span>점수</span><strong id="score">0</strong></div>
         <div><span>연속 정답</span><strong id="streak">0</strong></div>
       </section>
+      <div class="timer" aria-live="polite">남은 시간 <strong id="timer">7</strong>초</div>
 
       <nav class="category-tabs" aria-label="퀴즈 종류">
         <button class="category-tab active" type="button" data-category="flag-country">국기 → 나라</button>
@@ -34,6 +35,11 @@
         <p id="prompt" class="prompt">정답을 선택하세요</p>
         <div id="answers" class="answers"></div>
         <p id="feedback" class="feedback" role="status" aria-live="polite"></p>
+        <div class="voice-controls" aria-label="음성 기능">
+          <button id="speak-question" type="button">🔊 문제 읽기</button>
+          <button id="voice-answer" type="button">🎙️ 음성으로 답하기</button>
+          <span id="voice-status" role="status"></span>
+        </div>
         <button id="next" class="next-button" type="button" hidden>다음 문제 →</button>
       </section>
 
