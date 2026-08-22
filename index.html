@@ -21,6 +21,17 @@
         <div><span>점수</span><strong id="score">0</strong></div>
         <div><span>연속 정답</span><strong id="streak">0</strong></div>
       </section>
+
+      <section id="start-screen" class="start-screen" aria-labelledby="start-title">
+        <p class="eyebrow">CHOOSE A QUIZ</p>
+        <h2 id="start-title">어떤 퀴즈를 풀까요?</h2>
+        <div class="start-options">
+          <button type="button" data-start-category="flag-country">1. 국기 보고 나라 맞히기</button>
+          <button type="button" data-start-category="country-flag">2. 나라 보고 국기 맞히기</button>
+          <button type="button" data-start-category="country-capital">3. 나라 보고 수도 맞히기</button>
+        </div>
+        <p id="start-message" class="start-message">퀴즈를 선택하면 시작됩니다.</p>
+      </section>
       <div class="timer" aria-live="polite">남은 시간 <strong id="timer">7</strong>초</div>
 
       <nav class="category-tabs" aria-label="퀴즈 종류">

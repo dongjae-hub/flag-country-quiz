@@ -20,8 +20,12 @@ const scoreElement = document.querySelector("#score");
 const streakElement = document.querySelector("#streak");
 const finalScore = document.querySelector("#final-score");
 const resultMessage = document.querySelector("#result-message");
-const timerElement = document.querySelector("#timer");
+const startScreen = document.querySelector("#start-screen");
+const startMessage = document.querySelector("#start-message");
+const scoreboard = document.querySelector(".scoreboard");
+const categoryTabs = document.querySelector(".category-tabs");
 const timerBox = document.querySelector(".timer");
+const timerElement = document.querySelector("#timer");
 const speakButton = document.querySelector("#speak-question");
 const voiceButton = document.querySelector("#voice-answer");
 const voiceStatus = document.querySelector("#voice-status");
@@ -34,6 +38,11 @@ let timerId = null;
 let timeLeft = 7;
 let recognition = null;
 let recognizing = false;
+
+scoreboard.hidden = true;
+categoryTabs.hidden = true;
+timerBox.hidden = true;
+document.querySelector(".quiz-card").hidden = true;
 
 function shuffle(items) { return [...items].sort(() => Math.random() - .5); }
 
@@ -191,6 +200,26 @@ document.querySelectorAll("[data-category]").forEach((button) => button.addEvent
   document.querySelectorAll("[data-category]").forEach((item) => item.classList.toggle("active", item === button));
   question = 0; score = 0; streak = 0; scoreElement.textContent = "0"; streakElement.textContent = "0"; result.hidden = true; document.querySelector(".quiz-card").hidden = false; newQuestion();
 }));
+document.querySelectorAll("[data-start-category]").forEach((button) => button.addEventListener("click", () => {
+  category = button.dataset.startCategory;
+  document.querySelectorAll("[data-category]").forEach((item) => item.classList.toggle("active", item.dataset.category === category));
+  document.querySelectorAll("[data-start-category]").forEach((item) => { item.disabled = true; });
+  let countdown = 3;
+  startMessage.textContent = `${countdown}초 후 퀴즈가 시작됩니다.`;
+  const countdownId = window.setInterval(() => {
+    countdown -= 1;
+    if (countdown > 0) startMessage.textContent = `${countdown}초 후 퀴즈가 시작됩니다.`;
+    else {
+      window.clearInterval(countdownId);
+      startScreen.hidden = true;
+      scoreboard.hidden = false;
+      categoryTabs.hidden = false;
+      timerBox.hidden = false;
+      document.querySelector(".quiz-card").hidden = false;
+      newQuestion();
+    }
+  }, 1000);
+}));
 next.addEventListener("click", newQuestion);
  speakButton.addEventListener("click", speakQuestion);
 const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -218,4 +247,3 @@ if (Recognition) {
   voiceStatus.textContent = "이 브라우저는 음성 답변을 지원하지 않습니다. Chrome을 사용해 주세요.";
 }
 restart.addEventListener("click", () => { question = 0; score = 0; streak = 0; scoreElement.textContent = "0"; streakElement.textContent = "0"; result.hidden = true; document.querySelector(".quiz-card").hidden = false; newQuestion(); });
-newQuestion();
