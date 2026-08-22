@@ -5,3 +5,4 @@
 - `https://dongjae-hub.github.io/flag-country-quiz/`
 - HTML, CSS, JavaScript만 사용
 - 10문제, 점수와 연속 정답 표시
+- 150개 이상의 국가와 국기 수록
