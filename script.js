@@ -33,6 +33,7 @@ let category = "flag-country";
 let timerId = null;
 let timeLeft = 7;
 let recognition = null;
+let recognizing = false;
 
 function shuffle(items) { return [...items].sort(() => Math.random() - .5); }
 
@@ -67,12 +68,24 @@ function questionText() {
 }
 
 function speakQuestion() {
-  if (!("speechSynthesis" in window) || !current) return;
-  window.speechSynthesis.cancel();
-  const utterance = new SpeechSynthesisUtterance(questionText());
-  utterance.lang = "ko-KR";
-  utterance.rate = 1;
-  window.speechSynthesis.speak(utterance);
+  if (!("speechSynthesis" in window) || !current) {
+    voiceStatus.textContent = "이 브라우저는 문제 읽기를 지원하지 않습니다.";
+    return;
+  }
+  try {
+    window.speechSynthesis.cancel();
+    window.speechSynthesis.resume();
+    const utterance = new window.SpeechSynthesisUtterance(questionText());
+    utterance.lang = "ko-KR";
+    utterance.rate = 1;
+    utterance.onstart = () => { voiceStatus.textContent = "문제를 읽는 중입니다…"; };
+    utterance.onend = () => { voiceStatus.textContent = ""; };
+    utterance.onerror = () => { voiceStatus.textContent = "문제 읽기에 실패했습니다."; };
+    window.speechSynthesis.speak(utterance);
+  } catch (error) {
+    voiceStatus.textContent = "문제 읽기에 실패했습니다.";
+    console.warn("Speech synthesis failed", error);
+  }
 }
 
 function revealAnswerDetails() {
@@ -186,19 +199,23 @@ if (Recognition) {
   recognition.lang = "ko-KR";
   recognition.interimResults = false;
   recognition.maxAlternatives = 1;
-  recognition.onstart = () => { voiceStatus.textContent = "듣고 있습니다…"; voiceButton.disabled = true; };
-  recognition.onerror = () => { voiceStatus.textContent = "음성을 인식하지 못했습니다."; voiceButton.disabled = false; };
-  recognition.onend = () => { voiceButton.disabled = false; };
+  recognition.onstart = () => { recognizing = true; voiceStatus.textContent = "듣고 있습니다…"; voiceButton.disabled = true; };
+  recognition.onerror = (event) => { recognizing = false; voiceStatus.textContent = event.error === "not-allowed" ? "마이크 권한을 허용해 주세요." : "음성을 인식하지 못했습니다."; voiceButton.disabled = false; };
+  recognition.onend = () => { recognizing = false; voiceButton.disabled = false; };
   recognition.onresult = (event) => {
     const transcript = event.results[0][0].transcript.trim();
     voiceStatus.textContent = `인식: ${transcript}`;
     const match = [...answers.querySelectorAll("button")].find((button) => transcript.includes(button.dataset.answer));
     if (match) choose(match); else feedback.textContent = "선택지와 일치하는 답을 듣지 못했습니다.";
   };
-  voiceButton.addEventListener("click", () => recognition.start());
+  voiceButton.addEventListener("click", () => {
+    if (recognizing) return;
+    voiceStatus.textContent = "마이크를 준비하는 중입니다…";
+    try { recognition.start(); } catch (error) { voiceStatus.textContent = "음성 인식을 시작하지 못했습니다."; console.warn("Speech recognition failed", error); }
+  });
 } else {
   voiceButton.disabled = true;
-  voiceStatus.textContent = "이 브라우저는 음성 답변을 지원하지 않습니다.";
+  voiceStatus.textContent = "이 브라우저는 음성 답변을 지원하지 않습니다. Chrome을 사용해 주세요.";
 }
 restart.addEventListener("click", () => { question = 0; score = 0; streak = 0; scoreElement.textContent = "0"; streakElement.textContent = "0"; result.hidden = true; document.querySelector(".quiz-card").hidden = false; newQuestion(); });
 newQuestion();
