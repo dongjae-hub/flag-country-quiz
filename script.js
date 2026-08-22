@@ -89,6 +89,11 @@ function choose(button) {
   const correctAnswer = category === "country-capital" ? CAPITALS[current[1]] : current[0];
   const correct = chosen === correctAnswer;
   answers.querySelectorAll("button").forEach((item) => { item.disabled = true; if (item.dataset.answer === correctAnswer) item.classList.add("correct"); });
+  if (category === "country-flag") {
+    answers.querySelectorAll("button").forEach((item) => {
+      if (!item.querySelector(".answer-label")) item.insertAdjacentHTML("beforeend", `<span class="answer-label">${item.dataset.answer}</span>`);
+    });
+  }
   if (correct) { score += 1; streak += 1; button.classList.add("correct"); feedback.textContent = "정답입니다!"; feedback.className = "feedback good"; }
   else { streak = 0; button.classList.add("wrong"); feedback.textContent = `아쉬워요. 정답은 ${correctAnswer}입니다.`; feedback.className = "feedback bad"; }
   scoreElement.textContent = score;
