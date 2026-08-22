@@ -78,9 +78,9 @@ async function newQuestion() {
     const options = shuffle([correct, ...wrong]);
     const urls = await Promise.all(options.map(([, code]) => loadFlag(code).catch(() => null)));
     if (urls.some((url) => !url)) return newQuestion();
-    answers.innerHTML = options.map(([name], index) => `<button class="answer" type="button" data-answer="${name}"><img class="answer-flag" src="${urls[index]}" alt="${name} 국기"> </button>`).join("");
+    answers.innerHTML = options.map(([name], index) => `<button class="answer" type="button" data-answer="${name}" data-country="${name}"><img class="answer-flag" src="${urls[index]}" alt="${name} 국기"> </button>`).join("");
   } else {
-    answers.innerHTML = shuffle([correct, ...wrong]).map(([name]) => `<button class="answer" type="button" data-answer="${category === "country-capital" ? CAPITALS[COUNTRY_DATA.find(([country]) => country === name)?.[1]] : name}">${category === "country-capital" ? CAPITALS[COUNTRY_DATA.find(([country]) => country === name)?.[1]] : name}</button>`).join("");
+    answers.innerHTML = shuffle([correct, ...wrong]).map(([name, code]) => `<button class="answer" type="button" data-answer="${category === "country-capital" ? CAPITALS[code] : name}" data-country="${name}">${category === "country-capital" ? CAPITALS[code] : name}</button>`).join("");
   }
 }
 
@@ -89,9 +89,9 @@ function choose(button) {
   const correctAnswer = category === "country-capital" ? CAPITALS[current[1]] : current[0];
   const correct = chosen === correctAnswer;
   answers.querySelectorAll("button").forEach((item) => { item.disabled = true; if (item.dataset.answer === correctAnswer) item.classList.add("correct"); });
-  if (category === "country-flag") {
+  if (category === "country-flag" || category === "country-capital") {
     answers.querySelectorAll("button").forEach((item) => {
-      if (!item.querySelector(".answer-label")) item.insertAdjacentHTML("beforeend", `<span class="answer-label">${item.dataset.answer}</span>`);
+      if (!item.querySelector(".answer-label")) item.insertAdjacentHTML("beforeend", `<span class="answer-label">${item.dataset.country}</span>`);
     });
   }
   if (correct) { score += 1; streak += 1; button.classList.add("correct"); feedback.textContent = "정답입니다!"; feedback.className = "feedback good"; }
