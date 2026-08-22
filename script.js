@@ -9,6 +9,7 @@ const COUNTRY_DATA = [
 const COUNTRIES = COUNTRY_DATA.map(([name, code]) => [name, code]);
 const CAPITALS = { KR:"서울", JP:"도쿄", CN:"베이징", MN:"울란바토르", TW:"타이베이", VN:"하노이", TH:"방콕", PH:"마닐라", ID:"자카르타", MY:"쿠알라룸푸르", SG:"싱가포르", IN:"뉴델리", PK:"이슬라마바드", BD:"다카", NP:"카트만두", LK:"스리자야와르데네푸라코테", MM:"네피도", KH:"프놈펜", LA:"비엔티안", BN:"반다르스리브가완", BT:"팀푸", MV:"말레", TL:"딜리", US:"워싱턴 D.C.", CA:"오타와", MX:"멕시코시티", BR:"브라질리아", AR:"부에노스아이레스", CL:"산티아고", PE:"리마", CO:"보고타", EC:"키토", BO:"수크레", PY:"아순시온", UY:"몬테비데오", VE:"카라카스", CU:"아바나", JM:"킹스턴", HT:"포르토프랭스", DO:"산토도밍고", CR:"산호세", PA:"파나마시티", GT:"과테말라시티", HN:"테구시갈파", SV:"산살바도르", NI:"마나과", BS:"나소", BB:"브리지타운", TT:"포트오브스페인", GY:"조지타운", SR:"파라마리보", BZ:"벨모판", GD:"세인트조지스", LC:"캐스트리스", DM:"로조", FJ:"수바", PG:"포트모르즈비", WS:"아피아", TO:"누쿠알로파", VU:"포트빌라", SB:"호니아라", FM:"팔리키르", PW:"응게룰무드", MH:"마주로", KI:"사우스타라와", NR:"야렌", TV:"푸나푸티", AU:"캔버라", NZ:"웰링턴", GB:"런던", IE:"더블린", FR:"파리", DE:"베를린", IT:"로마", ES:"마드리드", PT:"리스본", NL:"암스테르담", BE:"브뤼셀", LU:"룩셈부르크", CH:"베른", AT:"빈", PL:"바르샤바", CZ:"프라하", SK:"브라티슬라바", HU:"부다페스트", RO:"부쿠레슈티", BG:"소피아", GR:"아테네", HR:"자그레브", SI:"류블랴나", RS:"베오그라드", BA:"사라예보", ME:"포드고리차", MK:"스코페", AL:"티라나", UA:"키이우", BY:"민스크", MD:"키시너우", RU:"모스크바", EE:"탈린", LV:"리가", LT:"빌뉴스", FI:"헬싱키", SE:"스톡홀름", NO:"오슬로", DK:"코펜하겐", IS:"레이캬비크", MT:"발레타", CY:"니코시아", TR:"앙카라", EG:"카이로", MA:"라바트", DZ:"알제", TN:"튀니스", LY:"트리폴리", SD:"하르툼", ET:"아디스아바바", KE:"나이로비", TZ:"도도마", UG:"캄팔라", RW:"키갈리", BI:"기테가", SO:"모가디슈", DJ:"지부티", ER:"아스마라", ZA:"프리토리아", NA:"빈트후크", BW:"가보로네", ZW:"하라레", ZM:"루사카", MZ:"마푸투", MG:"안타나나리보", MU:"포트루이스", SC:"빅토리아", AO:"루안다", CD:"킨샤사", CG:"브라자빌", GH:"아크라", NG:"아부자", CM:"야운데", SN:"다카르", ML:"바마코", NE:"니아메", TD:"은자메나", BF:"와가두구", CI:"야무수크로", GN:"코나크리", SL:"프리타운", LR:"몬로비아", GM:"반줄", GW:"비사우", CV:"프라이아", BJ:"포르토노보", TG:"로메", GA:"리브르빌", GQ:"말라보", CF:"방기", SS:"주바", SA:"리야드", AE:"아부다비", QA:"도하", KW:"쿠웨이트시티", BH:"마나마", OM:"무스카트", YE:"사나", IQ:"바그다드", IR:"테헤란", IL:"예루살렘", JO:"암만", LB:"베이루트", SY:"다마스쿠스", AF:"카불", KZ:"아스타나", UZ:"타슈켄트", TM:"아시가바트", KG:"비슈케크", TJ:"두샨베", AM:"예레반", AZ:"바쿠", GE:"트빌리시", PS:"라말라" };
 const TOTAL = 10;
+const QUESTION_TIME = 10;
 const flag = document.querySelector("#flag");
 const answers = document.querySelector("#answers");
 const feedback = document.querySelector("#feedback");
@@ -27,8 +28,6 @@ const categoryTabs = document.querySelector(".category-tabs");
 const timerBox = document.querySelector(".timer");
 const timerElement = document.querySelector("#timer");
 const timerProgress = document.querySelector("#timer-progress");
-const speakButton = document.querySelector("#speak-question");
-const voiceButton = document.querySelector("#voice-answer");
 const voiceStatus = document.querySelector("#voice-status");
 let question = 0;
 let score = 0;
@@ -36,9 +35,10 @@ let streak = 0;
 let current = null;
 let category = "flag-country";
 let timerId = null;
-let timeLeft = 7;
+let timeLeft = QUESTION_TIME;
 let recognition = null;
 let recognizing = false;
+let startVoiceRecognition = () => { voiceStatus.textContent = "음성 답변을 사용할 수 없습니다. 번호 버튼으로 선택해 주세요."; };
 
 scoreboard.hidden = true;
 categoryTabs.hidden = true;
@@ -60,14 +60,14 @@ function stopTimer() { if (timerId) window.clearInterval(timerId); timerId = nul
 
 function startTimer() {
   stopTimer();
-  timeLeft = 7;
+  timeLeft = QUESTION_TIME;
   timerElement.textContent = timeLeft;
   timerProgress.style.width = "100%";
   timerBox.classList.remove("warning");
   timerId = window.setInterval(() => {
     timeLeft -= 1;
     timerElement.textContent = timeLeft;
-    timerProgress.style.width = `${(timeLeft / 7) * 100}%`;
+    timerProgress.style.width = `${(timeLeft / QUESTION_TIME) * 100}%`;
     if (timeLeft <= 3) timerBox.classList.add("warning");
     if (timeLeft <= 0) { stopTimer(); timeOut(); }
   }, 1000);
@@ -82,6 +82,7 @@ function questionText() {
 function speakQuestion() {
   if (!("speechSynthesis" in window) || !current) {
     voiceStatus.textContent = "이 브라우저는 문제 읽기를 지원하지 않습니다.";
+    startVoiceRecognition();
     return;
   }
   try {
@@ -91,11 +92,12 @@ function speakQuestion() {
     utterance.lang = "ko-KR";
     utterance.rate = 1;
     utterance.onstart = () => { voiceStatus.textContent = "문제를 읽는 중입니다…"; };
-    utterance.onend = () => { voiceStatus.textContent = ""; };
+    utterance.onend = () => { voiceStatus.textContent = "1~4 중 번호를 말해 주세요."; startVoiceRecognition(); };
     utterance.onerror = () => { voiceStatus.textContent = "문제 읽기에 실패했습니다."; };
     window.speechSynthesis.speak(utterance);
   } catch (error) {
     voiceStatus.textContent = "문제 읽기에 실패했습니다.";
+    startVoiceRecognition();
     console.warn("Speech synthesis failed", error);
   }
 }
@@ -109,7 +111,7 @@ function revealAnswerDetails() {
   if (category === "flag-country") {
     answers.querySelectorAll("button").forEach((item) => {
       const code = COUNTRY_DATA.find(([name]) => name === item.dataset.answer)?.[1];
-      if (code) item.innerHTML = `<img class="answer-flag" src="https://flagcdn.com/w160/${code.toLowerCase()}.png" alt="${item.dataset.answer} 국기"><span class="answer-label">${item.dataset.answer}</span>`;
+      if (code) item.innerHTML = `<span class="choice-number">${[...answers.querySelectorAll("button")].indexOf(item) + 1}</span><img class="answer-flag" src="https://flagcdn.com/w160/${code.toLowerCase()}.png" alt="${item.dataset.answer} 국기"><span class="answer-label">${item.dataset.answer}</span>`;
     });
   }
 }
@@ -167,9 +169,9 @@ async function newQuestion() {
     const options = shuffle([correct, ...wrong]);
     const urls = await Promise.all(options.map(([, code]) => loadFlag(code).catch(() => null)));
     if (urls.some((url) => !url)) return newQuestion();
-    answers.innerHTML = options.map(([name], index) => `<button class="answer" type="button" data-answer="${name}" data-country="${name}"><img class="answer-flag" src="${urls[index]}" alt="${name} 국기"> </button>`).join("");
+    answers.innerHTML = options.map(([name], index) => `<button class="answer" type="button" data-answer="${name}" data-country="${name}"><span class="choice-number">${index + 1}</span><img class="answer-flag" src="${urls[index]}" alt="${name} 국기"></button>`).join("");
   } else {
-    answers.innerHTML = shuffle([correct, ...wrong]).map(([name, code]) => `<button class="answer" type="button" data-answer="${category === "country-capital" ? CAPITALS[code] : name}" data-country="${name}">${category === "country-capital" ? CAPITALS[code] : name}</button>`).join("");
+    answers.innerHTML = shuffle([correct, ...wrong]).map(([name, code], index) => `<button class="answer" type="button" data-answer="${category === "country-capital" ? CAPITALS[code] : name}" data-country="${name}"><span class="choice-number">${index + 1}</span>${category === "country-capital" ? CAPITALS[code] : name}</button>`).join("");
   }
   startTimer();
   speakQuestion();
@@ -177,6 +179,7 @@ async function newQuestion() {
 
 function choose(button) {
   stopTimer();
+  if (recognizing && recognition) recognition.stop();
   const chosen = button.dataset.answer;
   const correctAnswer = category === "country-capital" ? CAPITALS[current[1]] : current[0];
   const correct = chosen === correctAnswer;
@@ -224,29 +227,29 @@ document.querySelectorAll("[data-start-category]").forEach((button) => button.ad
   }, 1000);
 }));
 next.addEventListener("click", newQuestion);
- speakButton.addEventListener("click", speakQuestion);
 const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 if (Recognition) {
   recognition = new Recognition();
   recognition.lang = "ko-KR";
   recognition.interimResults = false;
   recognition.maxAlternatives = 1;
-  recognition.onstart = () => { recognizing = true; voiceStatus.textContent = "듣고 있습니다…"; voiceButton.disabled = true; };
-  recognition.onerror = (event) => { recognizing = false; voiceStatus.textContent = event.error === "not-allowed" ? "마이크 권한을 허용해 주세요." : "음성을 인식하지 못했습니다."; voiceButton.disabled = false; };
-  recognition.onend = () => { recognizing = false; voiceButton.disabled = false; };
+  recognition.onstart = () => { recognizing = true; voiceStatus.textContent = "듣고 있습니다… 1~4 중 번호를 말해 주세요."; };
+  recognition.onerror = (event) => { recognizing = false; voiceStatus.textContent = event.error === "not-allowed" ? "마이크 권한을 허용해 주세요. 번호 버튼으로 선택해 주세요." : "음성을 인식하지 못했습니다. 번호 버튼으로 선택해 주세요."; };
+  recognition.onend = () => { recognizing = false; };
   recognition.onresult = (event) => {
     const transcript = event.results[0][0].transcript.trim();
     voiceStatus.textContent = `인식: ${transcript}`;
-    const match = [...answers.querySelectorAll("button")].find((button) => transcript.includes(button.dataset.answer));
+    const koreanNumbers = { "일":"1", "하나":"1", "이":"2", "둘":"2", "삼":"3", "셋":"3", "사":"4", "넷":"4" };
+    const spokenNumber = transcript.match(/[1-4]/)?.[0] ?? Object.entries(koreanNumbers).find(([word]) => transcript.includes(word))?.[1];
+    const match = spokenNumber ? answers.querySelectorAll("button")[Number(spokenNumber) - 1] : null;
     if (match) choose(match); else feedback.textContent = "선택지와 일치하는 답을 듣지 못했습니다.";
   };
-  voiceButton.addEventListener("click", () => {
+  startVoiceRecognition = () => {
     if (recognizing) return;
     voiceStatus.textContent = "마이크를 준비하는 중입니다…";
     try { recognition.start(); } catch (error) { voiceStatus.textContent = "음성 인식을 시작하지 못했습니다."; console.warn("Speech recognition failed", error); }
-  });
+  };
 } else {
-  voiceButton.disabled = true;
-  voiceStatus.textContent = "이 브라우저는 음성 답변을 지원하지 않습니다. Chrome을 사용해 주세요.";
+  voiceStatus.textContent = "이 브라우저는 음성 답변을 지원하지 않습니다. 번호 버튼으로 선택해 주세요.";
 }
 restart.addEventListener("click", () => { question = 0; score = 0; streak = 0; scoreElement.textContent = "0"; streakElement.textContent = "0"; result.hidden = true; document.querySelector(".quiz-card").hidden = false; newQuestion(); });
