@@ -42,7 +42,7 @@ let timeLeft = QUESTION_TIME;
 let usedQuestions = new Set();
 let recognition = null;
 let recognizing = false;
-let startVoiceRecognition = () => { voiceStatus.textContent = "음성 답변을 사용할 수 없습니다. 번호 버튼으로 선택해 주세요."; };
+let startVoiceRecognition = () => { voiceStatus.textContent = "음성 답변을 사용할 수 없습니다. 직접 입력해 주세요."; };
 
 scoreboard.hidden = true;
 categoryTabs.hidden = true;
@@ -116,7 +116,7 @@ function speakQuestion() {
     utterance.rate = 1;
     utterance.onstart = () => { voiceStatus.textContent = "문제를 읽는 중입니다…"; };
     utterance.onend = () => {
-      if (category === "initial-country") voiceStatus.textContent = "초성을 읽었습니다. 나라 이름을 입력해 주세요.";
+      if (category === "initial-country") { voiceStatus.textContent = "초성을 읽었습니다. 나라 이름을 말해 주세요."; startVoiceRecognition(); }
       else { voiceStatus.textContent = "1~4 중 번호를 말해 주세요."; startVoiceRecognition(); }
     };
     utterance.onerror = () => { voiceStatus.textContent = "문제 읽기에 실패했습니다."; };
@@ -303,12 +303,19 @@ if (Recognition) {
   recognition.lang = "ko-KR";
   recognition.interimResults = false;
   recognition.maxAlternatives = 1;
-  recognition.onstart = () => { recognizing = true; voiceStatus.textContent = "듣고 있습니다… 1~4 중 번호를 말해 주세요."; };
-  recognition.onerror = (event) => { recognizing = false; voiceStatus.textContent = event.error === "not-allowed" ? "마이크 권한을 허용해 주세요. 번호 버튼으로 선택해 주세요." : "음성을 인식하지 못했습니다. 번호 버튼으로 선택해 주세요."; };
+  recognition.onstart = () => { recognizing = true; voiceStatus.textContent = category === "initial-country" ? "듣고 있습니다… 나라 이름을 말해 주세요." : "듣고 있습니다… 1~4 중 번호를 말해 주세요."; };
+  recognition.onerror = (event) => { recognizing = false; voiceStatus.textContent = event.error === "not-allowed" ? "마이크 권한을 허용해 주세요. 직접 입력도 가능합니다." : "음성을 인식하지 못했습니다. 다시 말하거나 직접 입력해 주세요."; };
   recognition.onend = () => { recognizing = false; };
   recognition.onresult = (event) => {
     const transcript = event.results[0][0].transcript.trim();
     voiceStatus.textContent = `인식: ${transcript}`;
+    if (category === "initial-country") {
+      const spoken = normalizeAnswer(transcript);
+      const match = getInitialAnswers(current[0]).find((answer) => spoken.includes(normalizeAnswer(answer)) || normalizeAnswer(answer).includes(spoken));
+      if (match) { textAnswer.value = match; submitTextAnswer(); }
+      else feedback.textContent = "초성에 맞는 나라 이름을 인식하지 못했습니다. 다시 말하거나 직접 입력해 주세요.";
+      return;
+    }
     const koreanNumbers = { "일":"1", "하나":"1", "이":"2", "둘":"2", "삼":"3", "셋":"3", "사":"4", "넷":"4" };
     const spokenNumber = transcript.match(/[1-4]/)?.[0] ?? Object.entries(koreanNumbers).find(([word]) => transcript.includes(word))?.[1];
     const match = spokenNumber ? answers.querySelectorAll("button")[Number(spokenNumber) - 1] : null;
@@ -320,6 +327,6 @@ if (Recognition) {
     try { recognition.start(); } catch (error) { voiceStatus.textContent = "음성 인식을 시작하지 못했습니다."; console.warn("Speech recognition failed", error); }
   };
 } else {
-  voiceStatus.textContent = "이 브라우저는 음성 답변을 지원하지 않습니다. 번호 버튼으로 선택해 주세요.";
+  voiceStatus.textContent = "이 브라우저는 음성 답변을 지원하지 않습니다. 직접 입력해 주세요.";
 }
 restart.addEventListener("click", () => { question = 0; score = 0; streak = 0; usedQuestions.clear(); scoreElement.textContent = "0"; streakElement.textContent = "0"; result.hidden = true; document.querySelector(".quiz-card").hidden = false; newQuestion(); });
