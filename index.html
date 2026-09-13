@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="description" content="국기를 보고 나라 이름을 맞히는 미니 퀴즈 게임">
     <title>Flag Quiz · 국기 나라 맞히기</title>
-    <link rel="stylesheet" href="styles.css?v=3">
-    <script type="module" src="script.js?v=3"></script>
+    <link rel="stylesheet" href="styles.css?v=4">
+    <script type="module" src="script.js?v=4"></script>
   </head>
   <body>
     <main class="app-shell">
@@ -29,6 +29,7 @@
           <button type="button" data-start-category="flag-country">1. 국기 보고 나라 맞히기</button>
           <button type="button" data-start-category="country-flag">2. 나라 보고 국기 맞히기</button>
           <button type="button" data-start-category="country-capital">3. 나라 보고 수도 맞히기</button>
+          <button type="button" data-start-category="initial-country">4. 초성 보고 나라 맞히기</button>
         </div>
         <p id="start-message" class="start-message">퀴즈를 선택하면 시작됩니다.</p>
       </section>
@@ -38,6 +39,7 @@
         <button class="category-tab active" type="button" data-category="flag-country">국기 → 나라</button>
         <button class="category-tab" type="button" data-category="country-flag">나라 → 국기</button>
         <button class="category-tab" type="button" data-category="country-capital">나라 → 수도</button>
+        <button class="category-tab" type="button" data-category="initial-country">초성 → 나라</button>
       </nav>
 
       <section class="quiz-card" aria-labelledby="quiz-title">
@@ -45,6 +47,12 @@
         <div id="flag" class="flag" role="img" aria-label="국기"></div>
         <p id="prompt" class="prompt">정답을 선택하세요</p>
         <div id="answers" class="answers"></div>
+        <form id="text-answer-form" class="text-answer-form" hidden>
+          <label class="sr-only" for="text-answer">나라 이름</label>
+          <input id="text-answer" name="answer" type="text" autocomplete="off" inputmode="text" placeholder="나라 이름을 입력하세요" aria-describedby="text-answer-help">
+          <button type="submit" class="next-button">정답 제출</button>
+          <p id="text-answer-help">초성을 보고 나라 이름을 입력하세요.</p>
+        </form>
         <p id="feedback" class="feedback" role="status" aria-live="polite"></p>
         <div class="voice-controls" aria-label="음성 기능"><span id="voice-status" role="status">문제를 읽고 있습니다…</span></div>
         <button id="next" class="next-button" type="button" hidden>다음 문제 →</button>
