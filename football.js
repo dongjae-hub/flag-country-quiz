@@ -1,6 +1,7 @@
+import { FALLBACK_RANKINGS, KOREAN_NAMES, RANKING_CACHE_KEY } from "./ranking-data.js";
+
 const API_ROOT = "https://api.fifa.com/api/v3";
 const scheduleEndpoint = `${API_ROOT}/rankingschedules/all?type=0&gender=1&language=en`;
-const RANKING_CACHE_KEY = "flag-country-quiz-fifa-ranking-cache-v1";
 const PHASES = [{ label:"100강", from:100, to:64 }, { label:"64강", from:64, to:32 }, { label:"32강", from:32, to:16 }, { label:"16강", from:16, to:8 }, { label:"8강", from:8, to:4 }, { label:"4강", from:4, to:2 }, { label:"결승", from:2, to:1 }];
 const HISTORY_KEY = "flag-country-quiz-football-history-v1";
 const canvas = document.querySelector("#race-canvas");
@@ -106,7 +107,18 @@ function saveHistoryIfFinished(winner, finished) { if (!finished) return; const 
 function renderHistory() { const history = JSON.parse(localStorage.getItem(HISTORY_KEY) || "[]"); historyList.innerHTML = history.length ? history.map((item) => `<li><span>${new Date(item.date).toLocaleString("ko-KR")}</span><strong>🏆 ${escapeHtml(item.winner)} <small>(FIFA #${item.rank})</small></strong></li>`).join("") : "<li>아직 기록이 없습니다.</li>"; }
 
 async function loadTeams() {
-  try { const cached = readCachedRanking(); const ranking = cached || await fetchFreshRanking(); const { schedule, rows } = ranking; teams = rows.map((row) => ({ rank:row.Rank, name:row.TeamName?.find((item) => item.Locale === "ko-KR")?.Description || row.TeamName?.[0]?.Description || row.IdCountry, code:row.IdCountry, points:row.DecimalTotalPoints, image:Object.assign(new Image(), { src:flagUrl(row.IdCountry) }) })); activeTeams = teams; loading.hidden = true; startButton.disabled = false; roundLabel.textContent = "FIFA TOP 100"; teamCount.textContent = teams.length; raceStatus.textContent = "준비"; lastUpdate.textContent = new Date(schedule.OfficialDate).toLocaleDateString("ko-KR"); raceMessage.textContent = `${teams.length}개 국가를 준비했습니다. ${cached ? "이번 주 저장된 FIFA 랭킹을 사용합니다." : "이번 주 FIFA 랭킹을 저장했습니다."}`; drawBackground(); } catch (error) { loading.textContent = "FIFA 랭킹을 불러오지 못했습니다. 새로고침 후 다시 시도해 주세요."; raceMessage.textContent = "공식 FIFA 데이터 연결에 실패했습니다."; console.error(error); }
+  const cached = readCachedRanking();
+  try {
+    const ranking = cached || await fetchFreshRanking();
+    const { schedule, rows } = ranking;
+    teams = rows.map((row) => { const englishName = row.TeamName?.find((item) => item.Locale !== "ko-KR")?.Description || row.TeamName?.[0]?.Description || row.IdCountry; return { rank:row.Rank, name:row.TeamName?.find((item) => item.Locale === "ko-KR")?.Description || KOREAN_NAMES[englishName] || englishName, code:row.IdCountry, points:row.DecimalTotalPoints, image:Object.assign(new Image(), { src:flagUrl(row.IdCountry) }) }; });
+    activeTeams = teams; loading.hidden = true; startButton.disabled = false; roundLabel.textContent = "FIFA TOP 100"; teamCount.textContent = teams.length; raceStatus.textContent = "준비"; lastUpdate.textContent = new Date(schedule.OfficialDate).toLocaleDateString("ko-KR"); raceMessage.textContent = `${teams.length}개 국가를 준비했습니다. ${cached ? "이번 주 저장된 FIFA 랭킹을 사용합니다." : "이번 주 FIFA 랭킹을 저장했습니다."}`; drawBackground();
+  } catch (error) {
+    const schedule = { OfficialDate:"2026-07-20T00:00:00Z" };
+    localStorage.setItem(RANKING_CACHE_KEY, JSON.stringify({ weekKey:weekKey(), savedAt:new Date().toISOString(), schedule, rows:FALLBACK_RANKINGS }));
+    teams = FALLBACK_RANKINGS.map((row) => ({ rank:row.Rank, name:row.TeamName[0].Description, code:row.IdCountry, points:row.DecimalTotalPoints, image:Object.assign(new Image(), { src:flagUrl(row.IdCountry) }) }));
+    activeTeams = teams; loading.hidden = true; startButton.disabled = false; roundLabel.textContent = "FIFA TOP 100"; teamCount.textContent = teams.length; raceStatus.textContent = "준비"; lastUpdate.textContent = new Date(schedule.OfficialDate).toLocaleDateString("ko-KR"); raceMessage.textContent = "FIFA API 연결 실패로 예비 랭킹을 사용합니다. 레이스를 시작하세요."; drawBackground(); console.error(error);
+  }
 }
 
 startButton.addEventListener("click", () => { if (!teams.length) return; if (startButton.dataset.continue !== "true") { activeTeams = teams; phaseIndex = 0; } startButton.dataset.continue = "false"; startRound(); });

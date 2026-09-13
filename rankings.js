@@ -1,6 +1,7 @@
+import { FALLBACK_RANKINGS, KOREAN_NAMES, RANKING_CACHE_KEY } from "./ranking-data.js";
+
 const API_ROOT = "https://api.fifa.com/api/v3";
 const scheduleEndpoint = `${API_ROOT}/rankingschedules/all?type=0&gender=1&language=en`;
-const RANKING_CACHE_KEY = "flag-country-quiz-fifa-ranking-cache-v1";
 const rankingList = document.querySelector("#ranking-list");
 const rankingMeta = document.querySelector("#ranking-meta");
 const rankingStatus = document.querySelector("#ranking-status");
@@ -52,12 +53,15 @@ async function fetchFreshRanking() {
 async function loadRankings() {
   refreshButton.disabled = true;
   rankingStatus.textContent = "FIFA 공식 랭킹을 불러오는 중입니다…";
+  let cached = readCachedRanking();
+  let ranking;
+  let sourceMessage;
   try {
-    const cached = readCachedRanking();
-    const ranking = cached || await fetchFreshRanking();
+    ranking = cached || await fetchFreshRanking();
     const { schedule, rows } = ranking;
     rankingList.innerHTML = rows.map((row) => {
-      const name = row.TeamName?.find((item) => item.Locale === "ko-KR")?.Description || row.TeamName?.[0]?.Description || row.IdCountry;
+      const englishName = row.TeamName?.find((item) => item.Locale !== "ko-KR")?.Description || row.TeamName?.[0]?.Description || row.IdCountry;
+      const name = row.TeamName?.find((item) => item.Locale === "ko-KR")?.Description || KOREAN_NAMES[englishName] || englishName;
       const points = Number(row.DecimalTotalPoints ?? row.TotalPoints).toLocaleString("ko-KR", { maximumFractionDigits: 2 });
       const flagUrl = `https://api.fifa.com/api/v1/picture/flags-sq-4/${String(row.IdCountry).toLowerCase()}`;
       return `<tr><td><strong>${row.Rank}</strong></td><td><span class="team"><img src="${flagUrl}" alt="">${escapeHtml(name)}</span></td><td>${movementMarkup(row)}</td><td>${points}</td></tr>`;
@@ -66,9 +70,18 @@ async function loadRankings() {
     rankingMeta.textContent = `공식 업데이트: ${officialDate} · 남자 국가대표팀 · 1~100위`;
     rankingStatus.textContent = `${rows.length}개 국가를 표시했습니다. ${cached ? "이번 주 저장 데이터를 사용했습니다." : "이번 주 FIFA 데이터를 저장했습니다."}`;
   } catch (error) {
-    rankingList.innerHTML = "";
-    rankingStatus.textContent = "랭킹을 불러오지 못했습니다. 잠시 후 다시 시도하거나 FIFA 공식 페이지를 확인해 주세요.";
-    rankingMeta.textContent = "실시간 FIFA 공식 데이터 연결 실패";
+    ranking = { schedule:{ OfficialDate:"2026-07-20T00:00:00Z" }, rows:FALLBACK_RANKINGS };
+    localStorage.setItem(RANKING_CACHE_KEY, JSON.stringify({ weekKey:weekKey(), savedAt:new Date().toISOString(), schedule:ranking.schedule, rows:ranking.rows }));
+    const { schedule, rows } = ranking;
+    rankingList.innerHTML = rows.map((row) => {
+      const englishName = row.TeamName?.find((item) => item.Locale !== "ko-KR")?.Description || row.TeamName?.[0]?.Description || row.IdCountry;
+      const name = row.TeamName?.find((item) => item.Locale === "ko-KR")?.Description || KOREAN_NAMES[englishName] || englishName;
+      const points = Number(row.DecimalTotalPoints ?? row.TotalPoints).toLocaleString("ko-KR", { maximumFractionDigits: 2 });
+      const flagUrl = `https://api.fifa.com/api/v1/picture/flags-sq-4/${String(row.IdCountry).toLowerCase()}`;
+      return `<tr><td><strong>${row.Rank}</strong></td><td><span class="team"><img src="${flagUrl}" alt="">${escapeHtml(name)}</span></td><td>${movementMarkup(row)}</td><td>${points}</td></tr>`;
+    }).join("");
+    rankingMeta.textContent = `예비 데이터 기준 업데이트: ${new Date(schedule.OfficialDate).toLocaleDateString("ko-KR")} · 남자 국가대표팀 · 1~100위`;
+    rankingStatus.textContent = "FIFA API 연결에 실패해 제공된 예비 랭킹을 사용했습니다.";
     console.error(error);
   } finally {
     refreshButton.disabled = false;
