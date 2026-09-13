@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="FIFA TOP 100 국가대표팀 그래픽 레이스 토너먼트">
+    <title>FIFA TOP 100 그래픽 레이스</title>
+    <link rel="stylesheet" href="football.css?v=1">
+    <script type="module" src="football.js?v=1"></script>
+  </head>
+  <body>
+    <main class="football-shell">
+      <a class="back-link" href="rankings.html">← FIFA 랭킹으로 돌아가기</a>
+      <header class="football-header">
+        <p class="eyebrow">FIFA TOP 100 · GRAPHIC RACE</p>
+        <h1>국가대표팀 <span>레이스</span></h1>
+        <p>랭킹 TOP 100 국가가 장애물을 통과해 결승선을 향합니다.</p>
+      </header>
+
+      <section class="race-panel" aria-label="레이스 게임">
+        <div class="race-toolbar">
+          <div><span class="label">현재 라운드</span><strong id="round-label">FIFA TOP 100</strong></div>
+          <div><span class="label">참가 팀</span><strong id="team-count">100</strong></div>
+          <div><span class="label">상태</span><strong id="race-status">준비</strong></div>
+        </div>
+        <div class="canvas-wrap"><canvas id="race-canvas" width="900" height="900" aria-label="국가대표팀 세로 레이스 그래픽"></canvas><div id="canvas-loading" class="canvas-loading">FIFA TOP 100을 불러오는 중입니다…</div></div>
+        <div class="race-controls"><button id="start-race" class="primary-button" type="button" disabled>레이스 시작</button><button id="reset-race" class="secondary-button" type="button">초기화</button></div>
+        <p id="race-message" class="race-message" role="status" aria-live="polite"></p>
+      </section>
+
+      <section class="standings-panel" aria-labelledby="standings-title">
+        <div class="section-heading"><h2 id="standings-title">라운드 결과</h2><span id="last-update"></span></div>
+        <ol id="standings-list" class="standings-list"><li>레이스를 시작하면 순위가 표시됩니다.</li></ol>
+      </section>
+
+      <section class="history-panel" aria-labelledby="history-title">
+        <div class="section-heading"><h2 id="history-title">누적 게임 기록</h2><button id="clear-history" class="text-button" type="button">기록 삭제</button></div>
+        <ul id="history-list" class="history-list"><li>아직 기록이 없습니다.</li></ul>
+      </section>
+      <p class="source-note">참가국·국기는 FIFA 공식 랭킹 API를 사용합니다. 레이스 기록은 이 브라우저에만 저장됩니다.</p>
+    </main>
+  </body>
+</html>
