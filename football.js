@@ -2,8 +2,16 @@ import { FALLBACK_RANKINGS, KOREAN_NAMES, RANKING_CACHE_KEY } from "./ranking-da
 
 const API_ROOT = "https://api.fifa.com/api/v3";
 const scheduleEndpoint = `${API_ROOT}/rankingschedules/all?type=0&gender=1&language=en`;
-const PHASES = [{ label:"예선 1경기", from:25, to:4, heat:true }, { label:"예선 2경기", from:25, to:4, heat:true }, { label:"예선 3경기", from:25, to:4, heat:true }, { label:"예선 4경기", from:25, to:4, heat:true }, { label:"16강", from:16, to:8 }, { label:"8강", from:8, to:4 }, { label:"4강", from:4, to:2 }, { label:"결승", from:2, to:1 }];
 const HISTORY_KEY = "flag-country-quiz-football-history-v1";
+const TRACK = { left: 34, right: 866, top: 20, bottom: 680 };
+const PHASES = [
+  { label: "예선 1경기", heat: true, target: 4 },
+  { label: "예선 2경기", heat: true, target: 4 },
+  { label: "예선 3경기", heat: true, target: 4 },
+  { label: "예선 4경기", heat: true, target: 4 },
+  { label: "16강", target: 8 }, { label: "8강", target: 4 },
+  { label: "4강", target: 2 }, { label: "결승", target: 1 }
+];
 const canvas = document.querySelector("#race-canvas");
 const ctx = canvas.getContext("2d");
 const loading = document.querySelector("#canvas-loading");
@@ -17,140 +25,38 @@ const raceMessage = document.querySelector("#race-message");
 const standingsList = document.querySelector("#standings-list");
 const historyList = document.querySelector("#history-list");
 const lastUpdate = document.querySelector("#last-update");
-let teams = [];
-let activeTeams = [];
-let phaseIndex = 0;
-let heatGroups = [];
-let heatQualified = [];
-let race = null;
-let animationId = null;
-let lastFrame = 0;
+let teams = [], activeTeams = [], heatGroups = [], heatQualified = [], phaseIndex = 0, race = null, animationId = null, lastFrame = 0;
 
-function fetchJson(url) { return fetch(url, { headers: { Accept:"application/json" } }).then((response) => { if (!response.ok) throw new Error(`FIFA API ${response.status}`); return response.json(); }); }
-function escapeHtml(value) { return String(value).replace(/[&<>'"]/g, (character) => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", "'":"&#39;", '"':"&quot;" }[character])); }
+function fetchJson(url) { return fetch(url, { headers: { Accept: "application/json" } }).then((r) => { if (!r.ok) throw new Error(`FIFA API ${r.status}`); return r.json(); }); }
+function escapeHtml(value) { return String(value).replace(/[&<>'"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;" }[c])); }
 function flagUrl(code) { return `https://api.fifa.com/api/v1/picture/flags-sq-4/${String(code).toLowerCase()}`; }
-function randomBetween(min, max) { return min + Math.random() * (max - min); }
-function shuffle(items) { return [...items].sort(() => Math.random() - .5); }
+function shuffle(items) { return [...items].sort(() => Math.random() - 0.5); }
+function random(min, max) { return min + Math.random() * (max - min); }
 function weekKey(date = new Date()) { const monday = new Date(date); const day = monday.getDay(); monday.setDate(monday.getDate() - (day === 0 ? 6 : day - 1)); monday.setHours(0, 0, 0, 0); return `${monday.getFullYear()}-${String(monday.getMonth() + 1).padStart(2, "0")}-${String(monday.getDate()).padStart(2, "0")}`; }
 function readCachedRanking() { try { const cache = JSON.parse(localStorage.getItem(RANKING_CACHE_KEY) || "null"); return cache?.weekKey === weekKey() && cache.rows?.length ? cache : null; } catch { return null; } }
-async function fetchFreshRanking() { const schedules = await fetchJson(scheduleEndpoint); const schedule = schedules.Results.filter((item) => item.Gender === 1).sort((a,b) => new Date(b.OfficialDate) - new Date(a.OfficialDate))[0]; if (!schedule) throw new Error("ranking schedule unavailable"); const data = await fetchJson(`${API_ROOT}/rankingsbyschedule?rankingScheduleId=${encodeURIComponent(schedule.IdRankingSchedule)}&language=en`); const rows = data.Results.filter((row) => row.StatusRanked !== 0 && row.Rank <= 100).sort((a,b) => a.Rank - b.Rank); const cache = { weekKey:weekKey(), savedAt:new Date().toISOString(), schedule, rows }; localStorage.setItem(RANKING_CACHE_KEY, JSON.stringify(cache)); return cache; }
-
-function drawBackground() {
-  const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
-  gradient.addColorStop(0, "#8db9d8"); gradient.addColorStop(.5, "#cfe5f4"); gradient.addColorStop(1, "#86b2d2");
-  ctx.fillStyle = gradient; ctx.fillRect(0, 0, canvas.width, canvas.height);
-  ctx.fillStyle = "rgba(255,255,255,.45)";
-  for (let y = 28; y < canvas.height - 28; y += 7) ctx.fillRect(0, y, canvas.width, 1);
-  ctx.fillStyle = "#fff"; ctx.fillRect(28, 0, 6, canvas.height); ctx.fillRect(canvas.width - 34, 0, 7, canvas.height);
-  ctx.fillStyle = "#38506d"; ctx.font = "700 17px system-ui"; ctx.fillText("START", 10, 22); ctx.fillText("FINISH", canvas.width - 83, 22);
-}
-
-function createObstacles() {
-  const types = ["wall", "bump", "net", "spinner"];
-  return Array.from({ length: 11 }, (_, index) => ({ type: types[index % types.length], x: 105 + index * 67 + randomBetween(-15, 15), angle: randomBetween(-.35, .35), hit:new Set(), rotation:randomBetween(0, Math.PI * 2) }));
-}
-
-function startRound() {
-  const phase = PHASES[phaseIndex];
-  const runners = activeTeams.map((team, index) => ({ ...team, lane:index, lanePosition:index, progress:0, pause:0, wallLock:null, bounce:0, finished:false, obstacles:new Set(), speed:randomBetween(.94,1.08) * (1 + (101 - team.rank) / 850) }));
-  race = { runners, finishers:[], obstacles:createObstacles(), elapsed:0, target:phase.to };
-  roundLabel.textContent = phase.heat ? `${phase.label} · 25개 팀` : phase.label; teamCount.textContent = runners.length; raceStatus.textContent = "진행 중"; raceMessage.textContent = phase.heat ? `${phase.label}: 25개 팀 중 먼저 결승선을 통과한 4개 팀이 16강으로 진출합니다.` : `${phase.label}: 먼저 결승선을 통과한 ${phase.to}개 팀이 다음 라운드로 진출합니다.`; startButton.disabled = true; lastFrame = performance.now();
-  cancelAnimationFrame(animationId); animationId = requestAnimationFrame(tick);
-}
-
-function obstacleCollision(runner, obstacle) {
-  if (runner.obstacles.has(obstacle)) return;
-  if (Math.abs(runner.progress - obstacle.x) > 13) return;
-  runner.obstacles.add(obstacle);
-  if (obstacle.type === "net") runner.pause = 1;
-  if (obstacle.type === "wall") { runner.progress = Math.max(0, obstacle.x - 15); runner.wallLock = { obstacle, remaining:.85 }; }
-  if (obstacle.type === "bump") runner.speed *= .78;
-  if (obstacle.type === "spinner") { runner.speed *= .86; runner.progress = Math.max(0, runner.progress - 28); runner.lanePosition = Math.max(0, Math.min(race.runners.length - 1, runner.lanePosition + (Math.random() < .5 ? -4 : 4))); runner.bounce = .55; }
-}
-
-function drawObstacle(obstacle) {
-  ctx.save(); ctx.translate(obstacle.x, canvas.height / 2);
-  if (obstacle.type === "wall") { ctx.rotate(obstacle.angle); ctx.fillStyle = "#75604e"; ctx.fillRect(-7, -canvas.height * .6, 14, canvas.height * 1.2); }
-  if (obstacle.type === "bump") { ctx.fillStyle = "#977b68"; for (let y = -250; y < 251; y += 70) { ctx.beginPath(); ctx.arc(0, y, 18, 0, Math.PI * 2); ctx.fill(); } }
-  if (obstacle.type === "net") { ctx.strokeStyle = "rgba(244,248,255,.95)"; ctx.lineWidth = 2; for (let y = -330; y < 331; y += 22) { ctx.beginPath(); ctx.moveTo(-8, y); ctx.lineTo(8, y + 28); ctx.stroke(); } ctx.strokeStyle = "#38506d"; ctx.lineWidth = 4; ctx.strokeRect(-10, -canvas.height * .46, 20, canvas.height * .92); }
-  if (obstacle.type === "spinner") { ctx.rotate(obstacle.rotation + (race?.elapsed || 0) * 2); ctx.strokeStyle = "#d34d62"; ctx.lineWidth = 9; ctx.beginPath(); ctx.moveTo(0, -100); ctx.lineTo(0, 100); ctx.stroke(); ctx.fillStyle = "#8c2638"; ctx.beginPath(); ctx.arc(0, 0, 13, 0, Math.PI * 2); ctx.fill(); }
-  ctx.restore();
-}
-
-function drawRunner(runner) {
-  const laneHeight = (canvas.height - 40) / Math.max(1, race.runners.length - 1);
-  const x = 40 + runner.progress;
-  const y = 20 + runner.lanePosition * laneHeight;
-  const radius = 5 + ((runner.rank - 1) / 99) * 5;
-  ctx.save(); ctx.beginPath(); ctx.arc(x, y, radius, 0, Math.PI * 2); ctx.clip();
-  if (runner.image?.complete && runner.image.naturalWidth) ctx.drawImage(runner.image, x - radius, y - radius, radius * 2, radius * 2);
-  else { ctx.fillStyle = `hsl(${(runner.rank * 37) % 360} 70% 52%)`; ctx.fillRect(x - radius, y - radius, radius * 2, radius * 2); }
-  ctx.restore(); ctx.strokeStyle = runner.pause > 0 ? "#e22" : runner.wallLock ? "#f5b942" : runner.bounce > 0 ? "#ff6b35" : "#fff"; ctx.lineWidth = runner.wallLock || runner.bounce > 0 ? 3 : 1.5; ctx.beginPath(); ctx.arc(x, y, radius, 0, Math.PI * 2); ctx.stroke();
-}
-
+async function fetchFreshRanking() { const schedules = await fetchJson(scheduleEndpoint); const schedule = schedules.Results.filter((item) => item.Gender === 1).sort((a, b) => new Date(b.OfficialDate) - new Date(a.OfficialDate))[0]; if (!schedule) throw new Error("ranking schedule unavailable"); const data = await fetchJson(`${API_ROOT}/rankingsbyschedule?rankingScheduleId=${encodeURIComponent(schedule.IdRankingSchedule)}&language=en`); const rows = data.Results.filter((row) => row.StatusRanked !== 0 && row.Rank <= 100).sort((a, b) => a.Rank - b.Rank); const cache = { weekKey: weekKey(), savedAt: new Date().toISOString(), schedule, rows }; localStorage.setItem(RANKING_CACHE_KEY, JSON.stringify(cache)); return cache; }
+function makeTeam(row) { const english = row.TeamName?.find((item) => item.Locale !== "ko-KR")?.Description || row.TeamName?.[0]?.Description || row.IdCountry; const name = row.TeamName?.find((item) => item.Locale === "ko-KR")?.Description || KOREAN_NAMES[english] || english; const image = new Image(); image.src = flagUrl(row.IdCountry); return { rank: row.Rank, name, code: row.IdCountry, points: row.DecimalTotalPoints, image }; }
+function laneY(index, count) { return TRACK.top + ((TRACK.bottom - TRACK.top) * (index + 0.5)) / count; }
+function radiusFor(rank) { return 6 + ((Math.max(1, Math.min(100, rank)) - 1) / 99) * 7; }
+function createObstacles() { const obstacles = []; [140, 245, 355, 470, 580, 700, 790].forEach((x, index) => obstacles.push({ type: index % 3 === 0 ? "spinner" : "diagonal", x, y: random(100, 590), length: random(90, 170), angle: random(-0.72, 0.72), width: 12, rotationSpeed: random(-2.6, 2.6), phase: random(0, 6) })); [300, 640].forEach((x, index) => obstacles.push({ type: "moving", x, baseY: random(180, 500), radius: 20, speed: random(1.1, 1.8), phase: index * 2.7 })); return obstacles; }
+function segment(o, time) { const angle = o.type === "spinner" ? o.angle + time * o.rotationSpeed : o.angle; const half = o.length / 2; return { angle, ax: o.x - Math.cos(angle) * half, ay: o.y - Math.sin(angle) * half, bx: o.x + Math.cos(angle) * half, by: o.y + Math.sin(angle) * half }; }
+function closestPoint(px, py, ax, ay, bx, by) { const dx = bx - ax, dy = by - ay, len2 = dx * dx + dy * dy || 1; const t = Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / len2)); return { x: ax + t * dx, y: ay + t * dy }; }
+function resolveSegment(runner, obstacle, time) { const s = segment(obstacle, time); const p = closestPoint(runner.x, runner.y, s.ax, s.ay, s.bx, s.by); let nx = runner.x - p.x, ny = runner.y - p.y, dist = Math.hypot(nx, ny); const minDist = runner.radius + obstacle.width / 2; if (dist >= minDist) return; if (!dist) { nx = -Math.sin(s.angle); ny = Math.cos(s.angle); dist = 1; } nx /= dist; ny /= dist; runner.x += nx * (minDist - dist + 0.8); runner.y += ny * (minDist - dist + 0.8); const dot = runner.vx * nx + runner.vy * ny; if (obstacle.type === "diagonal") { if (dot < 0) { runner.vx -= dot * nx; runner.vy -= dot * ny; } runner.slide = 0.18; } else { if (dot < 0) { runner.vx -= 1.65 * dot * nx; runner.vy -= 1.65 * dot * ny; } runner.vx *= 0.92; runner.vy += ny * 70; runner.bounce = 0.28; } }
+function resolveMoving(runner, obstacle, time) { const oy = obstacle.baseY + Math.sin(time * obstacle.speed + obstacle.phase) * 190; const dx = runner.x - obstacle.x, dy = runner.y - oy, dist = Math.hypot(dx, dy), minDist = runner.radius + obstacle.radius; if (dist >= minDist) return; const nx = dx / (dist || 1), ny = dy / (dist || 1); runner.x = obstacle.x + nx * (minDist + 0.8); runner.y = oy + ny * (minDist + 0.8); const dot = runner.vx * nx + runner.vy * ny; if (dot < 0) { runner.vx -= 1.8 * dot * nx; runner.vy -= 1.8 * dot * ny; } runner.vx *= 0.88; runner.vy *= 0.88; runner.bounce = 0.32; }
+function drawBackground() { ctx.clearRect(0, 0, canvas.width, canvas.height); ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, canvas.width, canvas.height); ctx.strokeStyle = "#182536"; ctx.lineWidth = 2; ctx.strokeRect(TRACK.left, TRACK.top, TRACK.right - TRACK.left, TRACK.bottom - TRACK.top); ctx.strokeStyle = "#17834b"; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(TRACK.left, TRACK.top); ctx.lineTo(TRACK.left, TRACK.bottom); ctx.stroke(); ctx.strokeStyle = "#d63d4f"; ctx.beginPath(); ctx.moveTo(TRACK.right, TRACK.top); ctx.lineTo(TRACK.right, TRACK.bottom); ctx.stroke(); ctx.fillStyle = "#526174"; ctx.font = "700 13px system-ui"; ctx.fillText("START", 8, 16); ctx.fillText("FINISH", TRACK.right - 18, 16); }
+function drawObstacle(o) { ctx.save(); ctx.lineCap = "round"; if (o.type === "moving") { const y = o.baseY + Math.sin((race?.elapsed || 0) * o.speed + o.phase) * 190; ctx.fillStyle = "#28384d"; ctx.beginPath(); ctx.arc(o.x, y, o.radius, 0, Math.PI * 2); ctx.fill(); ctx.strokeStyle = "#efb53e"; ctx.lineWidth = 3; ctx.stroke(); } else { const s = segment(o, race?.elapsed || 0); ctx.strokeStyle = o.type === "spinner" ? "#cb3d4e" : "#35485d"; ctx.lineWidth = o.width; ctx.beginPath(); ctx.moveTo(s.ax, s.ay); ctx.lineTo(s.bx, s.by); ctx.stroke(); ctx.fillStyle = o.type === "spinner" ? "#7e2234" : "#172333"; ctx.beginPath(); ctx.arc(o.x, o.y, 7, 0, Math.PI * 2); ctx.fill(); } ctx.restore(); }
+function drawRunner(runner) { const r = runner.radius; ctx.save(); ctx.beginPath(); ctx.arc(runner.x, runner.y, r, 0, Math.PI * 2); ctx.clip(); if (runner.image?.complete && runner.image.naturalWidth) ctx.drawImage(runner.image, runner.x - r, runner.y - r, r * 2, r * 2); else { ctx.fillStyle = `hsl(${(runner.rank * 37) % 360} 70% 52%)`; ctx.fillRect(runner.x - r, runner.y - r, r * 2, r * 2); } ctx.restore(); ctx.strokeStyle = runner.bounce > 0 ? "#f28b28" : runner.slide > 0 ? "#e2a51f" : "#1e2b3d"; ctx.lineWidth = runner.bounce > 0 || runner.slide > 0 ? 3 : 1.5; ctx.beginPath(); ctx.arc(runner.x, runner.y, r, 0, Math.PI * 2); ctx.stroke(); }
 function drawFrame() { drawBackground(); race.obstacles.forEach(drawObstacle); race.runners.forEach(drawRunner); }
-
-function tick(now) {
-  const dt = Math.min(0.05, (now - lastFrame) / 1000); lastFrame = now; race.elapsed += dt;
-  race.runners.forEach((runner) => {
-    if (runner.finished) return;
-    if (runner.wallLock) {
-      runner.progress = runner.wallLock.obstacle.x - 15;
-      runner.lanePosition += Math.sign(runner.wallLock.obstacle.angle || .25) * 5 * dt;
-      runner.lanePosition = Math.max(0, Math.min(race.runners.length - 1, runner.lanePosition));
-      runner.wallLock.remaining -= dt;
-      if (runner.wallLock.remaining <= 0) { runner.progress += 12; runner.wallLock = null; }
-    } else if (runner.bounce > 0) {
-      runner.progress = Math.max(0, runner.progress - 42 * dt);
-      runner.bounce = Math.max(0, runner.bounce - dt);
-    } else if (runner.pause > 0) {
-      runner.pause = Math.max(0, runner.pause - dt);
-    } else {
-      runner.progress += 15 * runner.speed * dt * (phaseIndex >= 4 ? 1.35 : 1);
-      race.obstacles.forEach((obstacle) => obstacleCollision(runner, obstacle));
-    }
-    if (runner.progress >= canvas.width - 80) { runner.progress = canvas.width - 80; runner.finished = true; race.finishers.push(runner); }
-  });
-  drawFrame();
-  if (race.finishers.length >= race.target) return completeRound();
-  animationId = requestAnimationFrame(tick);
-}
-
-function renderStandings(list) { standingsList.innerHTML = list.slice(0, 12).map((team, index) => `<li><strong>${index + 1}</strong><img class="mini-flag" src="${flagUrl(team.code)}" alt=""><span>${escapeHtml(team.name)}</span><span class="rank-note">FIFA #${team.rank}</span></li>`).join(""); }
-
-function completeRound() {
-  cancelAnimationFrame(animationId); const phase = PHASES[phaseIndex]; const qualified = race.finishers.slice(0, phase.to); renderStandings(race.finishers);
-  if (phase.heat) {
-    heatQualified.push(...qualified);
-    if (heatQualified.length < 16) {
-      phaseIndex += 1; activeTeams = heatGroups[phaseIndex]; startButton.disabled = false; startButton.textContent = `${PHASES[phaseIndex].label} 시작`; startButton.dataset.continue = "true"; raceStatus.textContent = "예선 완료"; raceMessage.textContent = `${phase.label}에서 ${qualified.map((team) => team.name).join(", ")} 진출 · 다음 조를 시작하세요.`; return;
-    }
-    activeTeams = heatQualified; phaseIndex = 4; startButton.disabled = false; startButton.textContent = "16강 시작"; startButton.dataset.continue = "true"; raceStatus.textContent = "16강 진출"; raceMessage.textContent = `4개 예선에서 선발된 16개 팀이 결정되었습니다.`; return;
-  }
-  activeTeams = qualified; raceStatus.textContent = phase.to === 1 ? "우승" : "완료"; raceMessage.textContent = phase.to === 1 ? `🏆 ${qualified[0].name}이(가) 최종 우승했습니다!` : `${phase.label} 완료 · ${qualified.length}개 팀이 다음 라운드로 진출합니다.`; saveHistoryIfFinished(qualified[0], phase.to === 1);
-  if (phase.to === 1) { startButton.disabled = false; startButton.textContent = "새 토너먼트"; startButton.dataset.continue = "false"; return; }
-  phaseIndex += 1; startButton.disabled = false; startButton.textContent = `${PHASES[phaseIndex].label} 시작`; startButton.dataset.continue = "true";
-}
-
-function saveHistoryIfFinished(winner, finished) { if (!finished) return; const history = JSON.parse(localStorage.getItem(HISTORY_KEY) || "[]"); history.unshift({ date:new Date().toISOString(), winner:winner.name, rank:winner.rank }); localStorage.setItem(HISTORY_KEY, JSON.stringify(history.slice(0, 20))); renderHistory(); }
+function startRound() { const phase = PHASES[phaseIndex], count = activeTeams.length; const runners = activeTeams.map((team, index) => ({ ...team, x: TRACK.left + 18, y: laneY(index, count), vx: random(85, 102) * (1 + (101 - team.rank) / 1100), vy: random(-3, 3), radius: radiusFor(team.rank), finished: false, slide: 0, bounce: 0 })); race = { runners, finishers: [], obstacles: createObstacles(), elapsed: 0, target: phase.target }; roundLabel.textContent = phase.heat ? `${phase.label} · 25개 팀` : phase.label; teamCount.textContent = count; raceStatus.textContent = "진행 중"; raceMessage.textContent = phase.heat ? "25개 팀이 실제 장애물을 통과하며 경쟁합니다. 상위 4팀이 진출합니다." : `${phase.label}에서 상위 ${phase.target}팀이 다음 라운드로 진출합니다.`; startButton.disabled = true; lastFrame = performance.now(); cancelAnimationFrame(animationId); animationId = requestAnimationFrame(tick); }
+function tick(now) { if (!race) return; const dt = Math.min(0.04, Math.max(0.001, (now - lastFrame) / 1000)); lastFrame = now; race.elapsed += dt; race.runners.forEach((runner) => { if (runner.finished) return; runner.vx = Math.min(125, runner.vx + 8 * dt); runner.x += runner.vx * dt; runner.y += runner.vy * dt; runner.vy *= 0.995; race.obstacles.forEach((o) => o.type === "moving" ? resolveMoving(runner, o, race.elapsed) : resolveSegment(runner, o, race.elapsed)); if (runner.y < TRACK.top + runner.radius) { runner.y = TRACK.top + runner.radius; runner.vy = Math.abs(runner.vy) * .7; } if (runner.y > TRACK.bottom - runner.radius) { runner.y = TRACK.bottom - runner.radius; runner.vy = -Math.abs(runner.vy) * .7; } runner.slide = Math.max(0, runner.slide - dt); runner.bounce = Math.max(0, runner.bounce - dt); if (runner.x >= TRACK.right - runner.radius) { runner.x = TRACK.right - runner.radius; runner.finished = true; race.finishers.push(runner); } }); drawFrame(); if (race.finishers.length >= race.target) return completeRound(); animationId = requestAnimationFrame(tick); }
+function renderStandings(list) { standingsList.innerHTML = list.slice(0, 16).map((team, index) => `<li><strong>${index + 1}</strong><img class="mini-flag" src="${flagUrl(team.code)}" alt=""><span>${escapeHtml(team.name)}</span><span class="rank-note">FIFA #${team.rank}</span></li>`).join(""); }
+function completeRound() { cancelAnimationFrame(animationId); const phase = PHASES[phaseIndex], qualified = race.finishers.slice(0, phase.target); renderStandings(race.finishers); if (phase.heat) { heatQualified.push(...qualified); if (phaseIndex < 3) { phaseIndex += 1; activeTeams = heatGroups[phaseIndex]; startButton.disabled = false; startButton.dataset.continue = "true"; startButton.textContent = `${PHASES[phaseIndex].label} 시작`; raceStatus.textContent = "예선 완료"; raceMessage.textContent = `${qualified.map((team) => team.name).join(", ")} 진출 · 다음 25개 팀 경기를 시작하세요.`; return; } activeTeams = heatQualified; phaseIndex = 4; startButton.disabled = false; startButton.dataset.continue = "true"; startButton.textContent = "16강 시작"; raceStatus.textContent = "16강 진출"; raceMessage.textContent = "4회 예선에서 선발된 16개 팀이 결정되었습니다."; return; } activeTeams = qualified; if (phase.target === 1) { raceStatus.textContent = "우승"; raceMessage.textContent = `🏆 ${qualified[0].name}이(가) 최종 우승했습니다!`; saveHistory(qualified[0]); startButton.disabled = false; startButton.dataset.continue = "false"; startButton.textContent = "새 토너먼트"; return; } phaseIndex += 1; startButton.disabled = false; startButton.dataset.continue = "true"; startButton.textContent = `${PHASES[phaseIndex].label} 시작`; raceStatus.textContent = "라운드 완료"; raceMessage.textContent = `${phase.label} 완료 · 다음 라운드를 시작하세요.`; }
+function saveHistory(winner) { const history = JSON.parse(localStorage.getItem(HISTORY_KEY) || "[]"); history.unshift({ date: new Date().toISOString(), winner: winner.name, rank: winner.rank }); localStorage.setItem(HISTORY_KEY, JSON.stringify(history.slice(0, 20))); renderHistory(); }
 function renderHistory() { const history = JSON.parse(localStorage.getItem(HISTORY_KEY) || "[]"); historyList.innerHTML = history.length ? history.map((item) => `<li><span>${new Date(item.date).toLocaleString("ko-KR")}</span><strong>🏆 ${escapeHtml(item.winner)} <small>(FIFA #${item.rank})</small></strong></li>`).join("") : "<li>아직 기록이 없습니다.</li>"; }
-
-async function loadTeams() {
-  const cached = readCachedRanking();
-  try {
-    const ranking = cached || await fetchFreshRanking();
-    const { schedule, rows } = ranking;
-    teams = rows.map((row) => { const englishName = row.TeamName?.find((item) => item.Locale !== "ko-KR")?.Description || row.TeamName?.[0]?.Description || row.IdCountry; return { rank:row.Rank, name:row.TeamName?.find((item) => item.Locale === "ko-KR")?.Description || KOREAN_NAMES[englishName] || englishName, code:row.IdCountry, points:row.DecimalTotalPoints, image:Object.assign(new Image(), { src:flagUrl(row.IdCountry) }) }; });
-    activeTeams = teams; loading.hidden = true; startButton.disabled = false; roundLabel.textContent = "FIFA TOP 100"; teamCount.textContent = teams.length; raceStatus.textContent = "준비"; lastUpdate.textContent = new Date(schedule.OfficialDate).toLocaleDateString("ko-KR"); raceMessage.textContent = `${teams.length}개 국가를 준비했습니다. ${cached ? "이번 주 저장된 FIFA 랭킹을 사용합니다." : "이번 주 FIFA 랭킹을 저장했습니다."}`; drawBackground();
-  } catch (error) {
-    const schedule = { OfficialDate:"2026-07-20T00:00:00Z" };
-    localStorage.setItem(RANKING_CACHE_KEY, JSON.stringify({ weekKey:weekKey(), savedAt:new Date().toISOString(), schedule, rows:FALLBACK_RANKINGS }));
-    teams = FALLBACK_RANKINGS.map((row) => ({ rank:row.Rank, name:row.TeamName[0].Description, code:row.IdCountry, points:row.DecimalTotalPoints, image:Object.assign(new Image(), { src:flagUrl(row.IdCountry) }) }));
-    activeTeams = teams; loading.hidden = true; startButton.disabled = false; roundLabel.textContent = "FIFA TOP 100"; teamCount.textContent = teams.length; raceStatus.textContent = "준비"; lastUpdate.textContent = new Date(schedule.OfficialDate).toLocaleDateString("ko-KR"); raceMessage.textContent = "FIFA API 연결 실패로 예비 랭킹을 사용합니다. 레이스를 시작하세요."; drawBackground(); console.error(error);
-  }
-}
-
-startButton.addEventListener("click", () => { if (!teams.length) return; if (startButton.dataset.continue !== "true") { heatGroups = []; const shuffled = shuffle(teams); for (let index = 0; index < 4; index += 1) heatGroups.push(shuffled.slice(index * 25, (index + 1) * 25)); heatQualified = []; activeTeams = heatGroups[0]; phaseIndex = 0; } startButton.dataset.continue = "false"; startRound(); });
-resetButton.addEventListener("click", () => { cancelAnimationFrame(animationId); activeTeams = teams; heatGroups = []; heatQualified = []; phaseIndex = 0; race = null; startButton.textContent = "레이스 시작"; startButton.dataset.continue = "false"; startButton.disabled = !teams.length; teamCount.textContent = teams.length || 100; roundLabel.textContent = "FIFA TOP 100"; raceStatus.textContent = "준비"; raceMessage.textContent = teams.length ? "100개 팀을 25개씩 무작위 4조로 나눠 레이스를 시작하세요." : "FIFA TOP 100을 불러오는 중입니다…"; drawBackground(); standingsList.innerHTML = "<li>레이스를 시작하면 순위가 표시됩니다.</li>"; });
+function setupTournament() { const shuffled = shuffle(teams); heatGroups = [0, 1, 2, 3].map((index) => shuffled.slice(index * 25, (index + 1) * 25)); heatQualified = []; activeTeams = heatGroups[0]; phaseIndex = 0; race = null; startButton.dataset.continue = "false"; startButton.textContent = "예선 1경기 시작"; teamCount.textContent = 25; roundLabel.textContent = "예선 1경기 · 25개 팀"; raceStatus.textContent = "준비"; raceMessage.textContent = "100개 팀을 무작위 25개씩 나눈 첫 번째 경기입니다."; drawPreview(); }
+function drawPreview() { drawBackground(); activeTeams.forEach((team, index) => drawRunner({ ...team, x: TRACK.left + 18, y: laneY(index, 25), radius: radiusFor(team.rank), slide: 0, bounce: 0 })); }
+async function loadTeams() { const cached = readCachedRanking(); try { const ranking = cached || await fetchFreshRanking(); teams = ranking.rows.map(makeTeam); lastUpdate.textContent = new Date(ranking.schedule.OfficialDate).toLocaleDateString("ko-KR"); raceMessage.textContent = cached ? "이번 주 저장된 FIFA 랭킹을 사용합니다." : "이번 주 FIFA 랭킹을 저장했습니다."; } catch (error) { const schedule = { OfficialDate: "2026-07-20T00:00:00Z" }; localStorage.setItem(RANKING_CACHE_KEY, JSON.stringify({ weekKey: weekKey(), savedAt: new Date().toISOString(), schedule, rows: FALLBACK_RANKINGS })); teams = FALLBACK_RANKINGS.map(makeTeam); lastUpdate.textContent = new Date(schedule.OfficialDate).toLocaleDateString("ko-KR"); console.error(error); raceMessage.textContent = "FIFA API 연결 실패로 예비 랭킹을 사용합니다."; } loading.hidden = true; startButton.disabled = false; setupTournament(); }
+startButton.addEventListener("click", () => { if (!teams.length) return; if (startButton.dataset.continue !== "true") setupTournament(); startRound(); });
+resetButton.addEventListener("click", () => { cancelAnimationFrame(animationId); setupTournament(); standingsList.innerHTML = "<li>레이스를 시작하면 순위가 표시됩니다.</li>"; });
 clearHistoryButton.addEventListener("click", () => { localStorage.removeItem(HISTORY_KEY); renderHistory(); });
 renderHistory(); drawBackground(); loadTeams();
