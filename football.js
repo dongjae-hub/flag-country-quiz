@@ -2,7 +2,7 @@ import { FALLBACK_RANKINGS, KOREAN_NAMES, RANKING_CACHE_KEY } from "./ranking-da
 
 const API_ROOT = "https://api.fifa.com/api/v3";
 const scheduleEndpoint = `${API_ROOT}/rankingschedules/all?type=0&gender=1&language=en`;
-const PHASES = [{ label:"100강", from:100, to:64 }, { label:"64강", from:64, to:32 }, { label:"32강", from:32, to:16 }, { label:"16강", from:16, to:8 }, { label:"8강", from:8, to:4 }, { label:"4강", from:4, to:2 }, { label:"결승", from:2, to:1 }];
+const PHASES = [{ label:"예선 1경기", from:25, to:4, heat:true }, { label:"예선 2경기", from:25, to:4, heat:true }, { label:"예선 3경기", from:25, to:4, heat:true }, { label:"예선 4경기", from:25, to:4, heat:true }, { label:"16강", from:16, to:8 }, { label:"8강", from:8, to:4 }, { label:"4강", from:4, to:2 }, { label:"결승", from:2, to:1 }];
 const HISTORY_KEY = "flag-country-quiz-football-history-v1";
 const canvas = document.querySelector("#race-canvas");
 const ctx = canvas.getContext("2d");
@@ -20,6 +20,8 @@ const lastUpdate = document.querySelector("#last-update");
 let teams = [];
 let activeTeams = [];
 let phaseIndex = 0;
+let heatGroups = [];
+let heatQualified = [];
 let race = null;
 let animationId = null;
 let lastFrame = 0;
@@ -28,6 +30,7 @@ function fetchJson(url) { return fetch(url, { headers: { Accept:"application/jso
 function escapeHtml(value) { return String(value).replace(/[&<>'"]/g, (character) => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", "'":"&#39;", '"':"&quot;" }[character])); }
 function flagUrl(code) { return `https://api.fifa.com/api/v1/picture/flags-sq-4/${String(code).toLowerCase()}`; }
 function randomBetween(min, max) { return min + Math.random() * (max - min); }
+function shuffle(items) { return [...items].sort(() => Math.random() - .5); }
 function weekKey(date = new Date()) { const monday = new Date(date); const day = monday.getDay(); monday.setDate(monday.getDate() - (day === 0 ? 6 : day - 1)); monday.setHours(0, 0, 0, 0); return `${monday.getFullYear()}-${String(monday.getMonth() + 1).padStart(2, "0")}-${String(monday.getDate()).padStart(2, "0")}`; }
 function readCachedRanking() { try { const cache = JSON.parse(localStorage.getItem(RANKING_CACHE_KEY) || "null"); return cache?.weekKey === weekKey() && cache.rows?.length ? cache : null; } catch { return null; } }
 async function fetchFreshRanking() { const schedules = await fetchJson(scheduleEndpoint); const schedule = schedules.Results.filter((item) => item.Gender === 1).sort((a,b) => new Date(b.OfficialDate) - new Date(a.OfficialDate))[0]; if (!schedule) throw new Error("ranking schedule unavailable"); const data = await fetchJson(`${API_ROOT}/rankingsbyschedule?rankingScheduleId=${encodeURIComponent(schedule.IdRankingSchedule)}&language=en`); const rows = data.Results.filter((row) => row.StatusRanked !== 0 && row.Rank <= 100).sort((a,b) => a.Rank - b.Rank); const cache = { weekKey:weekKey(), savedAt:new Date().toISOString(), schedule, rows }; localStorage.setItem(RANKING_CACHE_KEY, JSON.stringify(cache)); return cache; }
@@ -49,9 +52,9 @@ function createObstacles() {
 
 function startRound() {
   const phase = PHASES[phaseIndex];
-  const runners = activeTeams.map((team, index) => ({ ...team, lane:index, progress:0, pause:0, finished:false, obstacles:new Set(), speed:randomBetween(.94,1.08) * (1 + (101 - team.rank) / 850) }));
+  const runners = activeTeams.map((team, index) => ({ ...team, lane:index, lanePosition:index, progress:0, pause:0, wallLock:null, bounce:0, finished:false, obstacles:new Set(), speed:randomBetween(.94,1.08) * (1 + (101 - team.rank) / 850) }));
   race = { runners, finishers:[], obstacles:createObstacles(), elapsed:0, target:phase.to };
-  roundLabel.textContent = phase.label; teamCount.textContent = runners.length; raceStatus.textContent = "진행 중"; raceMessage.textContent = `${phase.label} 레이스: 먼저 결승선을 통과한 ${phase.to}개 팀이 다음 라운드로 진출합니다.`; startButton.disabled = true; lastFrame = performance.now();
+  roundLabel.textContent = phase.heat ? `${phase.label} · 25개 팀` : phase.label; teamCount.textContent = runners.length; raceStatus.textContent = "진행 중"; raceMessage.textContent = phase.heat ? `${phase.label}: 25개 팀 중 먼저 결승선을 통과한 4개 팀이 16강으로 진출합니다.` : `${phase.label}: 먼저 결승선을 통과한 ${phase.to}개 팀이 다음 라운드로 진출합니다.`; startButton.disabled = true; lastFrame = performance.now();
   cancelAnimationFrame(animationId); animationId = requestAnimationFrame(tick);
 }
 
@@ -60,9 +63,9 @@ function obstacleCollision(runner, obstacle) {
   if (Math.abs(runner.progress - obstacle.x) > 13) return;
   runner.obstacles.add(obstacle);
   if (obstacle.type === "net") runner.pause = 1;
-  if (obstacle.type === "wall") runner.progress = Math.max(0, runner.progress - 7);
+  if (obstacle.type === "wall") { runner.progress = Math.max(0, obstacle.x - 15); runner.wallLock = { obstacle, remaining:.85 }; }
   if (obstacle.type === "bump") runner.speed *= .78;
-  if (obstacle.type === "spinner") runner.speed *= .86;
+  if (obstacle.type === "spinner") { runner.speed *= .86; runner.progress = Math.max(0, runner.progress - 28); runner.lanePosition = Math.max(0, Math.min(race.runners.length - 1, runner.lanePosition + (Math.random() < .5 ? -4 : 4))); runner.bounce = .55; }
 }
 
 function drawObstacle(obstacle) {
@@ -77,19 +80,37 @@ function drawObstacle(obstacle) {
 function drawRunner(runner) {
   const laneHeight = (canvas.height - 40) / Math.max(1, race.runners.length - 1);
   const x = 40 + runner.progress;
-  const y = 20 + runner.lane * laneHeight;
+  const y = 20 + runner.lanePosition * laneHeight;
   const radius = 5 + ((runner.rank - 1) / 99) * 5;
   ctx.save(); ctx.beginPath(); ctx.arc(x, y, radius, 0, Math.PI * 2); ctx.clip();
   if (runner.image?.complete && runner.image.naturalWidth) ctx.drawImage(runner.image, x - radius, y - radius, radius * 2, radius * 2);
   else { ctx.fillStyle = `hsl(${(runner.rank * 37) % 360} 70% 52%)`; ctx.fillRect(x - radius, y - radius, radius * 2, radius * 2); }
-  ctx.restore(); ctx.strokeStyle = runner.pause > 0 ? "#e22" : "#fff"; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(x, y, radius, 0, Math.PI * 2); ctx.stroke();
+  ctx.restore(); ctx.strokeStyle = runner.pause > 0 ? "#e22" : runner.wallLock ? "#f5b942" : runner.bounce > 0 ? "#ff6b35" : "#fff"; ctx.lineWidth = runner.wallLock || runner.bounce > 0 ? 3 : 1.5; ctx.beginPath(); ctx.arc(x, y, radius, 0, Math.PI * 2); ctx.stroke();
 }
 
 function drawFrame() { drawBackground(); race.obstacles.forEach(drawObstacle); race.runners.forEach(drawRunner); }
 
 function tick(now) {
   const dt = Math.min(0.05, (now - lastFrame) / 1000); lastFrame = now; race.elapsed += dt;
-  race.runners.forEach((runner) => { if (runner.finished) return; if (runner.pause > 0) runner.pause = Math.max(0, runner.pause - dt); else { runner.progress += 15 * runner.speed * dt * (phaseIndex ? 1.35 : 1); race.obstacles.forEach((obstacle) => obstacleCollision(runner, obstacle)); } if (runner.progress >= canvas.width - 80) { runner.progress = canvas.width - 80; runner.finished = true; race.finishers.push(runner); } });
+  race.runners.forEach((runner) => {
+    if (runner.finished) return;
+    if (runner.wallLock) {
+      runner.progress = runner.wallLock.obstacle.x - 15;
+      runner.lanePosition += Math.sign(runner.wallLock.obstacle.angle || .25) * 5 * dt;
+      runner.lanePosition = Math.max(0, Math.min(race.runners.length - 1, runner.lanePosition));
+      runner.wallLock.remaining -= dt;
+      if (runner.wallLock.remaining <= 0) { runner.progress += 12; runner.wallLock = null; }
+    } else if (runner.bounce > 0) {
+      runner.progress = Math.max(0, runner.progress - 42 * dt);
+      runner.bounce = Math.max(0, runner.bounce - dt);
+    } else if (runner.pause > 0) {
+      runner.pause = Math.max(0, runner.pause - dt);
+    } else {
+      runner.progress += 15 * runner.speed * dt * (phaseIndex >= 4 ? 1.35 : 1);
+      race.obstacles.forEach((obstacle) => obstacleCollision(runner, obstacle));
+    }
+    if (runner.progress >= canvas.width - 80) { runner.progress = canvas.width - 80; runner.finished = true; race.finishers.push(runner); }
+  });
   drawFrame();
   if (race.finishers.length >= race.target) return completeRound();
   animationId = requestAnimationFrame(tick);
@@ -98,7 +119,15 @@ function tick(now) {
 function renderStandings(list) { standingsList.innerHTML = list.slice(0, 12).map((team, index) => `<li><strong>${index + 1}</strong><img class="mini-flag" src="${flagUrl(team.code)}" alt=""><span>${escapeHtml(team.name)}</span><span class="rank-note">FIFA #${team.rank}</span></li>`).join(""); }
 
 function completeRound() {
-  cancelAnimationFrame(animationId); const phase = PHASES[phaseIndex]; const qualified = race.finishers.slice(0, phase.to); activeTeams = qualified; renderStandings(race.finishers); raceStatus.textContent = phase.to === 1 ? "우승" : "완료"; raceMessage.textContent = phase.to === 1 ? `🏆 ${qualified[0].name}이(가) 최종 우승했습니다!` : `${phase.label} 완료 · ${qualified.length}개 팀이 다음 라운드에 진출합니다.`; saveHistoryIfFinished(qualified[0], phase.to === 1);
+  cancelAnimationFrame(animationId); const phase = PHASES[phaseIndex]; const qualified = race.finishers.slice(0, phase.to); renderStandings(race.finishers);
+  if (phase.heat) {
+    heatQualified.push(...qualified);
+    if (heatQualified.length < 16) {
+      phaseIndex += 1; activeTeams = heatGroups[phaseIndex]; startButton.disabled = false; startButton.textContent = `${PHASES[phaseIndex].label} 시작`; startButton.dataset.continue = "true"; raceStatus.textContent = "예선 완료"; raceMessage.textContent = `${phase.label}에서 ${qualified.map((team) => team.name).join(", ")} 진출 · 다음 조를 시작하세요.`; return;
+    }
+    activeTeams = heatQualified; phaseIndex = 4; startButton.disabled = false; startButton.textContent = "16강 시작"; startButton.dataset.continue = "true"; raceStatus.textContent = "16강 진출"; raceMessage.textContent = `4개 예선에서 선발된 16개 팀이 결정되었습니다.`; return;
+  }
+  activeTeams = qualified; raceStatus.textContent = phase.to === 1 ? "우승" : "완료"; raceMessage.textContent = phase.to === 1 ? `🏆 ${qualified[0].name}이(가) 최종 우승했습니다!` : `${phase.label} 완료 · ${qualified.length}개 팀이 다음 라운드로 진출합니다.`; saveHistoryIfFinished(qualified[0], phase.to === 1);
   if (phase.to === 1) { startButton.disabled = false; startButton.textContent = "새 토너먼트"; startButton.dataset.continue = "false"; return; }
   phaseIndex += 1; startButton.disabled = false; startButton.textContent = `${PHASES[phaseIndex].label} 시작`; startButton.dataset.continue = "true";
 }
@@ -121,7 +150,7 @@ async function loadTeams() {
   }
 }
 
-startButton.addEventListener("click", () => { if (!teams.length) return; if (startButton.dataset.continue !== "true") { activeTeams = teams; phaseIndex = 0; } startButton.dataset.continue = "false"; startRound(); });
-resetButton.addEventListener("click", () => { cancelAnimationFrame(animationId); activeTeams = teams; phaseIndex = 0; race = null; startButton.textContent = "레이스 시작"; startButton.dataset.continue = "false"; startButton.disabled = !teams.length; teamCount.textContent = teams.length || 100; roundLabel.textContent = "FIFA TOP 100"; raceStatus.textContent = "준비"; raceMessage.textContent = teams.length ? "레이스를 시작하세요." : "FIFA TOP 100을 불러오는 중입니다…"; drawBackground(); standingsList.innerHTML = "<li>레이스를 시작하면 순위가 표시됩니다.</li>"; });
+startButton.addEventListener("click", () => { if (!teams.length) return; if (startButton.dataset.continue !== "true") { heatGroups = []; const shuffled = shuffle(teams); for (let index = 0; index < 4; index += 1) heatGroups.push(shuffled.slice(index * 25, (index + 1) * 25)); heatQualified = []; activeTeams = heatGroups[0]; phaseIndex = 0; } startButton.dataset.continue = "false"; startRound(); });
+resetButton.addEventListener("click", () => { cancelAnimationFrame(animationId); activeTeams = teams; heatGroups = []; heatQualified = []; phaseIndex = 0; race = null; startButton.textContent = "레이스 시작"; startButton.dataset.continue = "false"; startButton.disabled = !teams.length; teamCount.textContent = teams.length || 100; roundLabel.textContent = "FIFA TOP 100"; raceStatus.textContent = "준비"; raceMessage.textContent = teams.length ? "100개 팀을 25개씩 무작위 4조로 나눠 레이스를 시작하세요." : "FIFA TOP 100을 불러오는 중입니다…"; drawBackground(); standingsList.innerHTML = "<li>레이스를 시작하면 순위가 표시됩니다.</li>"; });
 clearHistoryButton.addEventListener("click", () => { localStorage.removeItem(HISTORY_KEY); renderHistory(); });
 renderHistory(); drawBackground(); loadTeams();
