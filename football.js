@@ -1,5 +1,6 @@
 const API_ROOT = "https://api.fifa.com/api/v3";
 const scheduleEndpoint = `${API_ROOT}/rankingschedules/all?type=0&gender=1&language=en`;
+const RANKING_CACHE_KEY = "flag-country-quiz-fifa-ranking-cache-v1";
 const PHASES = [{ label:"100강", from:100, to:64 }, { label:"64강", from:64, to:32 }, { label:"32강", from:32, to:16 }, { label:"16강", from:16, to:8 }, { label:"8강", from:8, to:4 }, { label:"4강", from:4, to:2 }, { label:"결승", from:2, to:1 }];
 const HISTORY_KEY = "flag-country-quiz-football-history-v1";
 const canvas = document.querySelector("#race-canvas");
@@ -26,20 +27,23 @@ function fetchJson(url) { return fetch(url, { headers: { Accept:"application/jso
 function escapeHtml(value) { return String(value).replace(/[&<>'"]/g, (character) => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", "'":"&#39;", '"':"&quot;" }[character])); }
 function flagUrl(code) { return `https://api.fifa.com/api/v1/picture/flags-sq-4/${String(code).toLowerCase()}`; }
 function randomBetween(min, max) { return min + Math.random() * (max - min); }
+function weekKey(date = new Date()) { const monday = new Date(date); const day = monday.getDay(); monday.setDate(monday.getDate() - (day === 0 ? 6 : day - 1)); monday.setHours(0, 0, 0, 0); return `${monday.getFullYear()}-${String(monday.getMonth() + 1).padStart(2, "0")}-${String(monday.getDate()).padStart(2, "0")}`; }
+function readCachedRanking() { try { const cache = JSON.parse(localStorage.getItem(RANKING_CACHE_KEY) || "null"); return cache?.weekKey === weekKey() && cache.rows?.length ? cache : null; } catch { return null; } }
+async function fetchFreshRanking() { const schedules = await fetchJson(scheduleEndpoint); const schedule = schedules.Results.filter((item) => item.Gender === 1).sort((a,b) => new Date(b.OfficialDate) - new Date(a.OfficialDate))[0]; if (!schedule) throw new Error("ranking schedule unavailable"); const data = await fetchJson(`${API_ROOT}/rankingsbyschedule?rankingScheduleId=${encodeURIComponent(schedule.IdRankingSchedule)}&language=en`); const rows = data.Results.filter((row) => row.StatusRanked !== 0 && row.Rank <= 100).sort((a,b) => a.Rank - b.Rank); const cache = { weekKey:weekKey(), savedAt:new Date().toISOString(), schedule, rows }; localStorage.setItem(RANKING_CACHE_KEY, JSON.stringify(cache)); return cache; }
 
 function drawBackground() {
-  const gradient = ctx.createLinearGradient(0, 0, canvas.width, 0);
+  const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
   gradient.addColorStop(0, "#8db9d8"); gradient.addColorStop(.5, "#cfe5f4"); gradient.addColorStop(1, "#86b2d2");
   ctx.fillStyle = gradient; ctx.fillRect(0, 0, canvas.width, canvas.height);
   ctx.fillStyle = "rgba(255,255,255,.45)";
-  for (let y = 0; y < canvas.height; y += 48) ctx.fillRect(0, y, canvas.width, 2);
-  ctx.fillStyle = "#fff"; ctx.fillRect(0, 28, canvas.width, 5); ctx.fillRect(0, canvas.height - 34, canvas.width, 7);
-  ctx.fillStyle = "#38506d"; ctx.font = "700 17px system-ui"; ctx.fillText("START", 14, 22); ctx.fillText("FINISH", 14, canvas.height - 45);
+  for (let y = 28; y < canvas.height - 28; y += 7) ctx.fillRect(0, y, canvas.width, 1);
+  ctx.fillStyle = "#fff"; ctx.fillRect(28, 0, 6, canvas.height); ctx.fillRect(canvas.width - 34, 0, 7, canvas.height);
+  ctx.fillStyle = "#38506d"; ctx.font = "700 17px system-ui"; ctx.fillText("START", 10, 22); ctx.fillText("FINISH", canvas.width - 83, 22);
 }
 
 function createObstacles() {
   const types = ["wall", "bump", "net", "spinner"];
-  return Array.from({ length: 11 }, (_, index) => ({ type: types[index % types.length], y: 105 + index * 67 + randomBetween(-15, 15), angle: randomBetween(-.35, .35), hit:new Set(), rotation:randomBetween(0, Math.PI * 2) }));
+  return Array.from({ length: 11 }, (_, index) => ({ type: types[index % types.length], x: 105 + index * 67 + randomBetween(-15, 15), angle: randomBetween(-.35, .35), hit:new Set(), rotation:randomBetween(0, Math.PI * 2) }));
 }
 
 function startRound() {
@@ -52,7 +56,7 @@ function startRound() {
 
 function obstacleCollision(runner, obstacle) {
   if (runner.obstacles.has(obstacle)) return;
-  if (Math.abs(runner.progress - obstacle.y) > 13) return;
+  if (Math.abs(runner.progress - obstacle.x) > 13) return;
   runner.obstacles.add(obstacle);
   if (obstacle.type === "net") runner.pause = 1;
   if (obstacle.type === "wall") runner.progress = Math.max(0, runner.progress - 7);
@@ -61,18 +65,18 @@ function obstacleCollision(runner, obstacle) {
 }
 
 function drawObstacle(obstacle) {
-  ctx.save(); ctx.translate(canvas.width / 2, obstacle.y);
-  if (obstacle.type === "wall") { ctx.rotate(obstacle.angle); ctx.fillStyle = "#75604e"; ctx.fillRect(-canvas.width * .6, -7, canvas.width * 1.2, 14); }
-  if (obstacle.type === "bump") { ctx.fillStyle = "#977b68"; for (let x = -300; x < 301; x += 70) { ctx.beginPath(); ctx.arc(x, 0, 18, 0, Math.PI * 2); ctx.fill(); } }
-  if (obstacle.type === "net") { ctx.strokeStyle = "rgba(244,248,255,.95)"; ctx.lineWidth = 2; for (let x = -450; x < 451; x += 22) { ctx.beginPath(); ctx.moveTo(x, -8); ctx.lineTo(x + 28, 8); ctx.stroke(); } ctx.strokeStyle = "#38506d"; ctx.lineWidth = 4; ctx.strokeRect(-canvas.width * .48, -10, canvas.width * .96, 20); }
-  if (obstacle.type === "spinner") { ctx.rotate(obstacle.rotation + (race?.elapsed || 0) * 2); ctx.strokeStyle = "#d34d62"; ctx.lineWidth = 9; ctx.beginPath(); ctx.moveTo(-100, 0); ctx.lineTo(100, 0); ctx.stroke(); ctx.fillStyle = "#8c2638"; ctx.beginPath(); ctx.arc(0, 0, 13, 0, Math.PI * 2); ctx.fill(); }
+  ctx.save(); ctx.translate(obstacle.x, canvas.height / 2);
+  if (obstacle.type === "wall") { ctx.rotate(obstacle.angle); ctx.fillStyle = "#75604e"; ctx.fillRect(-7, -canvas.height * .6, 14, canvas.height * 1.2); }
+  if (obstacle.type === "bump") { ctx.fillStyle = "#977b68"; for (let y = -250; y < 251; y += 70) { ctx.beginPath(); ctx.arc(0, y, 18, 0, Math.PI * 2); ctx.fill(); } }
+  if (obstacle.type === "net") { ctx.strokeStyle = "rgba(244,248,255,.95)"; ctx.lineWidth = 2; for (let y = -330; y < 331; y += 22) { ctx.beginPath(); ctx.moveTo(-8, y); ctx.lineTo(8, y + 28); ctx.stroke(); } ctx.strokeStyle = "#38506d"; ctx.lineWidth = 4; ctx.strokeRect(-10, -canvas.height * .46, 20, canvas.height * .92); }
+  if (obstacle.type === "spinner") { ctx.rotate(obstacle.rotation + (race?.elapsed || 0) * 2); ctx.strokeStyle = "#d34d62"; ctx.lineWidth = 9; ctx.beginPath(); ctx.moveTo(0, -100); ctx.lineTo(0, 100); ctx.stroke(); ctx.fillStyle = "#8c2638"; ctx.beginPath(); ctx.arc(0, 0, 13, 0, Math.PI * 2); ctx.fill(); }
   ctx.restore();
 }
 
 function drawRunner(runner) {
-  const laneWidth = (canvas.width - 40) / Math.max(1, race.runners.length - 1);
-  const x = 20 + runner.lane * laneWidth;
-  const y = canvas.height - 40 - runner.progress;
+  const laneHeight = (canvas.height - 40) / Math.max(1, race.runners.length - 1);
+  const x = 40 + runner.progress;
+  const y = 20 + runner.lane * laneHeight;
   const radius = 5 + ((runner.rank - 1) / 99) * 5;
   ctx.save(); ctx.beginPath(); ctx.arc(x, y, radius, 0, Math.PI * 2); ctx.clip();
   if (runner.image?.complete && runner.image.naturalWidth) ctx.drawImage(runner.image, x - radius, y - radius, radius * 2, radius * 2);
@@ -84,7 +88,7 @@ function drawFrame() { drawBackground(); race.obstacles.forEach(drawObstacle); r
 
 function tick(now) {
   const dt = Math.min(0.05, (now - lastFrame) / 1000); lastFrame = now; race.elapsed += dt;
-  race.runners.forEach((runner) => { if (runner.finished) return; if (runner.pause > 0) runner.pause = Math.max(0, runner.pause - dt); else { runner.progress += 15 * runner.speed * dt * (phaseIndex ? 1.35 : 1); race.obstacles.forEach((obstacle) => obstacleCollision(runner, obstacle)); } if (runner.progress >= canvas.height - 80) { runner.progress = canvas.height - 80; runner.finished = true; race.finishers.push(runner); } });
+  race.runners.forEach((runner) => { if (runner.finished) return; if (runner.pause > 0) runner.pause = Math.max(0, runner.pause - dt); else { runner.progress += 15 * runner.speed * dt * (phaseIndex ? 1.35 : 1); race.obstacles.forEach((obstacle) => obstacleCollision(runner, obstacle)); } if (runner.progress >= canvas.width - 80) { runner.progress = canvas.width - 80; runner.finished = true; race.finishers.push(runner); } });
   drawFrame();
   if (race.finishers.length >= race.target) return completeRound();
   animationId = requestAnimationFrame(tick);
@@ -102,7 +106,7 @@ function saveHistoryIfFinished(winner, finished) { if (!finished) return; const 
 function renderHistory() { const history = JSON.parse(localStorage.getItem(HISTORY_KEY) || "[]"); historyList.innerHTML = history.length ? history.map((item) => `<li><span>${new Date(item.date).toLocaleString("ko-KR")}</span><strong>🏆 ${escapeHtml(item.winner)} <small>(FIFA #${item.rank})</small></strong></li>`).join("") : "<li>아직 기록이 없습니다.</li>"; }
 
 async function loadTeams() {
-  try { const schedules = await fetchJson(scheduleEndpoint); const schedule = schedules.Results.filter((item) => item.Gender === 1).sort((a,b) => new Date(b.OfficialDate) - new Date(a.OfficialDate))[0]; const data = await fetchJson(`${API_ROOT}/rankingsbyschedule?rankingScheduleId=${encodeURIComponent(schedule.IdRankingSchedule)}&language=en`); teams = data.Results.filter((row) => row.StatusRanked !== 0 && row.Rank <= 100).sort((a,b) => a.Rank - b.Rank).map((row) => ({ rank:row.Rank, name:row.TeamName?.find((item) => item.Locale === "ko-KR")?.Description || row.TeamName?.[0]?.Description || row.IdCountry, code:row.IdCountry, points:row.DecimalTotalPoints, image:Object.assign(new Image(), { src:flagUrl(row.IdCountry) }) })); activeTeams = teams; loading.hidden = true; startButton.disabled = false; roundLabel.textContent = "FIFA TOP 100"; teamCount.textContent = teams.length; raceStatus.textContent = "준비"; lastUpdate.textContent = new Date(schedule.OfficialDate).toLocaleDateString("ko-KR"); raceMessage.textContent = `${teams.length}개 국가를 준비했습니다. 레이스를 시작하세요.`; drawBackground(); } catch (error) { loading.textContent = "FIFA 랭킹을 불러오지 못했습니다. 새로고침 후 다시 시도해 주세요."; raceMessage.textContent = "공식 FIFA 데이터 연결에 실패했습니다."; console.error(error); }
+  try { const cached = readCachedRanking(); const ranking = cached || await fetchFreshRanking(); const { schedule, rows } = ranking; teams = rows.map((row) => ({ rank:row.Rank, name:row.TeamName?.find((item) => item.Locale === "ko-KR")?.Description || row.TeamName?.[0]?.Description || row.IdCountry, code:row.IdCountry, points:row.DecimalTotalPoints, image:Object.assign(new Image(), { src:flagUrl(row.IdCountry) }) })); activeTeams = teams; loading.hidden = true; startButton.disabled = false; roundLabel.textContent = "FIFA TOP 100"; teamCount.textContent = teams.length; raceStatus.textContent = "준비"; lastUpdate.textContent = new Date(schedule.OfficialDate).toLocaleDateString("ko-KR"); raceMessage.textContent = `${teams.length}개 국가를 준비했습니다. ${cached ? "이번 주 저장된 FIFA 랭킹을 사용합니다." : "이번 주 FIFA 랭킹을 저장했습니다."}`; drawBackground(); } catch (error) { loading.textContent = "FIFA 랭킹을 불러오지 못했습니다. 새로고침 후 다시 시도해 주세요."; raceMessage.textContent = "공식 FIFA 데이터 연결에 실패했습니다."; console.error(error); }
 }
 
 startButton.addEventListener("click", () => { if (!teams.length) return; if (startButton.dataset.continue !== "true") { activeTeams = teams; phaseIndex = 0; } startButton.dataset.continue = "false"; startRound(); });
