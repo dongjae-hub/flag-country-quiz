@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="FIFA/Coca-Cola 남자 축구 국가대표팀 최신 세계 랭킹 1위부터 100위">
+    <title>FIFA 랭킹 1~100위 · Flag Country Quiz</title>
+    <link rel="stylesheet" href="rankings.css?v=1">
+    <script type="module" src="rankings.js?v=1"></script>
+  </head>
+  <body>
+    <main class="rankings-shell">
+      <a class="back-link" href="index.html">← 게임으로 돌아가기</a>
+      <header class="rankings-header">
+        <p class="eyebrow">FIFA / COCA-COLA MEN'S WORLD RANKING</p>
+        <h1>세계 축구 랭킹 <span>TOP 100</span></h1>
+        <p id="ranking-meta">FIFA 공식 데이터를 불러오는 중입니다…</p>
+      </header>
+      <section class="ranking-card" aria-labelledby="ranking-title">
+        <div class="ranking-card-heading">
+          <h2 id="ranking-title">최신 남자 국가대표팀 랭킹</h2>
+          <button id="refresh-rankings" type="button">새로고침</button>
+        </div>
+        <p class="movement-guide"><span class="up">▲</span> 상승 <span class="down">▼</span> 하락 <span class="same">—</span> 유지 · 전월 공식 랭킹 대비</p>
+        <p id="ranking-status" class="status" role="status" aria-live="polite"></p>
+        <div class="table-wrap">
+          <table>
+            <caption class="sr-only">FIFA 남자 축구 국가대표팀 랭킹 1위부터 100위</caption>
+            <thead><tr><th scope="col">순위</th><th scope="col">국가</th><th scope="col">변동</th><th scope="col">포인트</th></tr></thead>
+            <tbody id="ranking-list"></tbody>
+          </table>
+        </div>
+      </section>
+      <p class="source-note">출처: <a href="https://www.fifa.com/fifa-world-ranking/men" target="_blank" rel="noreferrer">FIFA/Coca-Cola Men's World Ranking</a>. 페이지를 열 때 FIFA 공식 API에서 최신 데이터를 불러옵니다.</p>
+    </main>
+  </body>
+</html>
