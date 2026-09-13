@@ -60,6 +60,11 @@ function getInitials(name) {
 }
 
 function normalizeAnswer(value) { return value.trim().replace(/\s+/g, "").toLowerCase(); }
+function getInitialAnswers(name) {
+  const initials = getInitials(name);
+  return COUNTRIES.filter(([country]) => getInitials(country) === initials).map(([country]) => country);
+}
+function formatAcceptedAnswers(name) { return getInitialAnswers(name).join(" 또는 "); }
 function getTimeLimit() { return category === "initial-country" ? INITIAL_QUESTION_TIME : QUESTION_TIME; }
 function getCorrectAnswer() { return current ? current[0] : ""; }
 
@@ -142,7 +147,7 @@ function timeOut() {
   const correctAnswer = category === "country-capital" ? CAPITALS[current[1]] : getCorrectAnswer();
   if (category === "initial-country") {
     textAnswer.disabled = true;
-    feedback.textContent = `시간 초과입니다. 정답은 ${correctAnswer}입니다.`;
+    feedback.textContent = `시간 초과입니다. 정답은 ${formatAcceptedAnswers(correctAnswer)}입니다.`;
     feedback.className = "feedback bad";
     next.hidden = false;
     return;
@@ -237,9 +242,9 @@ function submitTextAnswer() {
   if (category !== "initial-country" || !current || textAnswer.disabled) return;
   stopTimer();
   const chosen = normalizeAnswer(textAnswer.value);
-  const correctAnswer = normalizeAnswer(current[0]);
+  const acceptedAnswers = getInitialAnswers(current[0]);
   textAnswer.disabled = true;
-  const correct = chosen === correctAnswer;
+  const correct = acceptedAnswers.some((answer) => normalizeAnswer(answer) === chosen);
   if (correct) {
     score += 1;
     streak += 1;
@@ -247,7 +252,7 @@ function submitTextAnswer() {
     feedback.className = "feedback good";
   } else {
     streak = 0;
-    feedback.textContent = `오답입니다. 정답은 ${current[0]}입니다.`;
+    feedback.textContent = `오답입니다. 정답은 ${formatAcceptedAnswers(current[0])}입니다.`;
     feedback.className = "feedback bad";
   }
   scoreElement.textContent = score;
