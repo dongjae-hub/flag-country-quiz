@@ -6,7 +6,7 @@
     <meta name="description" content="국기를 보고 나라 이름을 맞히는 미니 퀴즈 게임">
     <title>Flag Quiz · 국기 나라 맞히기</title>
     <link rel="stylesheet" href="styles.css?v=6">
-    <script type="module" src="script.js?v=9"></script>
+    <script type="module" src="script.js?v=10"></script>
   </head>
   <body>
     <main class="app-shell">
@@ -48,12 +48,7 @@
         <div id="flag" class="flag" role="img" aria-label="국기"></div>
         <p id="prompt" class="prompt">정답을 선택하세요</p>
         <div id="answers" class="answers"></div>
-        <form id="text-answer-form" class="text-answer-form" hidden>
-          <label class="sr-only" for="text-answer">나라 이름</label>
-          <input id="text-answer" name="answer" type="text" autocomplete="off" inputmode="text" placeholder="나라 이름을 입력하세요" aria-describedby="text-answer-help">
-          <button type="submit" class="next-button">정답 제출</button>
-          <p id="text-answer-help">초성을 보고 나라 이름을 입력하세요.</p>
-        </form>
+        <div id="voice-answer" class="voice-answer" hidden><span>인식한 답</span><output id="recognized-answer">-</output></div>
         <p id="feedback" class="feedback" role="status" aria-live="polite"></p>
         <div class="voice-controls" aria-label="음성 기능"><span id="voice-status" role="status">문제를 읽고 있습니다…</span><button id="voice-retry" type="button">🎙️ 음성으로 답하기</button></div>
         <button id="next" class="next-button" type="button" hidden>다음 문제 →</button>

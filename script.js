@@ -13,8 +13,8 @@ const QUESTION_TIME = 10;
 const INITIAL_QUESTION_TIME = 20;
 const flag = document.querySelector("#flag");
 const answers = document.querySelector("#answers");
-const textAnswerForm = document.querySelector("#text-answer-form");
-const textAnswer = document.querySelector("#text-answer");
+const voiceAnswer = document.querySelector("#voice-answer");
+const recognizedAnswer = document.querySelector("#recognized-answer");
 const feedback = document.querySelector("#feedback");
 const next = document.querySelector("#next");
 const restart = document.querySelector("#restart");
@@ -155,7 +155,6 @@ function timeOut() {
   const correctAnswer = category === "country-capital" ? CAPITALS[current[1]] : getCorrectAnswer();
   if (category === "initial-country") {
     if (recognizing && recognition) recognition.stop();
-    textAnswer.disabled = true;
     streak = 0;
     streakElement.textContent = streak;
     feedback.textContent = `시간 초과입니다. 정답은 ${formatAcceptedAnswers(correctAnswer)}입니다.`;
@@ -202,7 +201,7 @@ async function newQuestion() {
   current = correct;
   questionNumber.textContent = `${question} / ${TOTAL}`;
   flag.hidden = category !== "flag-country";
-  textAnswerForm.hidden = category !== "initial-country";
+  voiceAnswer.hidden = category !== "initial-country";
   answers.hidden = category === "initial-country";
   if (category === "flag-country") {
     flag.innerHTML = `<img src="${imageUrl}" alt="${correct[0]} 국기" loading="eager">`;
@@ -212,9 +211,7 @@ async function newQuestion() {
     document.querySelector("#prompt").innerHTML = `<strong>${correct[0]}</strong>의 국기는 무엇일까요?`;
   } else if (category === "initial-country") {
     document.querySelector("#prompt").innerHTML = `초성 <strong>${getInitials(correct[0])}</strong>의 나라는 무엇일까요?`;
-    textAnswer.value = "";
-    textAnswer.disabled = false;
-    textAnswer.focus();
+    recognizedAnswer.textContent = "-";
   } else {
     document.querySelector("#prompt").innerHTML = `<strong>${correct[0]}</strong>의 수도는 어디일까요?`;
   }
@@ -250,21 +247,20 @@ function choose(button) {
   next.hidden = false;
 }
 
-function submitTextAnswer() {
-  if (category !== "initial-country" || !current || textAnswer.disabled) return;
-  const chosen = normalizeAnswer(textAnswer.value);
+function submitVoiceAnswer(transcript) {
+  if (category !== "initial-country" || !current || !next.hidden) return;
+  const chosen = normalizeAnswer(transcript);
   const acceptedAnswers = getInitialAnswers(current[0]);
   if (!chosen) {
-    feedback.textContent = "나라 이름을 입력하거나 말해 주세요.";
+    feedback.textContent = "나라 이름을 다시 말해 주세요.";
     feedback.className = "feedback bad";
-    textAnswer.focus();
+    setVoiceRetryLabel();
     return;
   }
   const correct = acceptedAnswers.some((answer) => normalizeAnswer(answer) === chosen);
   if (correct) {
     stopTimer();
     if (recognizing && recognition) recognition.stop();
-    textAnswer.disabled = true;
     score += 1;
     streak += 1;
     feedback.textContent = "정답입니다!";
@@ -273,8 +269,6 @@ function submitTextAnswer() {
     feedback.textContent = "아직 아니에요. 시간이 끝날 때까지 다시 입력해 보세요.";
     feedback.className = "feedback bad";
     setVoiceRetryLabel();
-    textAnswer.select();
-    textAnswer.focus();
     return;
   }
   scoreElement.textContent = score;
@@ -318,7 +312,6 @@ document.querySelectorAll("[data-start-category]").forEach((button) => button.ad
   }, 1000);
 }));
 next.addEventListener("click", newQuestion);
-textAnswerForm.addEventListener("submit", (event) => { event.preventDefault(); submitTextAnswer(); });
 const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 if (Recognition) {
   recognition = new Recognition();
@@ -342,20 +335,8 @@ if (Recognition) {
     const transcript = event.results[0][0].transcript.trim();
     voiceStatus.textContent = `인식: ${transcript}`;
     if (category === "initial-country") {
-      textAnswer.value = transcript;
-      const spoken = normalizeAnswer(transcript);
-      const match = getInitialAnswers(current[0]).find((answer) => spoken.includes(normalizeAnswer(answer)) || normalizeAnswer(answer).includes(spoken));
-      if (match) {
-        const recognizedText = textAnswer.value;
-        textAnswer.value = match;
-        submitTextAnswer();
-        textAnswer.value = recognizedText;
-      }
-      else {
-        feedback.textContent = "초성에 맞는 나라 이름이 아닙니다. 다시 말해 주세요.";
-        feedback.className = "feedback bad";
-        setVoiceRetryLabel();
-      }
+      recognizedAnswer.textContent = transcript || "(인식 결과 없음)";
+      submitVoiceAnswer(transcript);
       return;
     }
     const koreanNumbers = { "일":"1", "하나":"1", "이":"2", "둘":"2", "삼":"3", "셋":"3", "사":"4", "넷":"4" };
@@ -369,7 +350,7 @@ if (Recognition) {
   };
   startVoiceRecognition = () => {
     if (recognizing) return;
-    if (!current || textAnswer.disabled || timeLeft <= 0) return;
+    if (!current || !next.hidden || timeLeft <= 0) return;
     if (!window.isSecureContext && location.hostname !== "localhost") {
       voiceStatus.textContent = "음성 인식은 HTTPS 환경에서만 사용할 수 있습니다.";
       return;
