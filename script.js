@@ -10,7 +10,7 @@ const COUNTRIES = COUNTRY_DATA.map(([name, code]) => [name, code]);
 const CAPITALS = { KR:"서울", JP:"도쿄", CN:"베이징", MN:"울란바토르", TW:"타이베이", VN:"하노이", TH:"방콕", PH:"마닐라", ID:"자카르타", MY:"쿠알라룸푸르", SG:"싱가포르", IN:"뉴델리", PK:"이슬라마바드", BD:"다카", NP:"카트만두", LK:"스리자야와르데네푸라코테", MM:"네피도", KH:"프놈펜", LA:"비엔티안", BN:"반다르스리브가완", BT:"팀푸", MV:"말레", TL:"딜리", US:"워싱턴 D.C.", CA:"오타와", MX:"멕시코시티", BR:"브라질리아", AR:"부에노스아이레스", CL:"산티아고", PE:"리마", CO:"보고타", EC:"키토", BO:"수크레", PY:"아순시온", UY:"몬테비데오", VE:"카라카스", CU:"아바나", JM:"킹스턴", HT:"포르토프랭스", DO:"산토도밍고", CR:"산호세", PA:"파나마시티", GT:"과테말라시티", HN:"테구시갈파", SV:"산살바도르", NI:"마나과", BS:"나소", BB:"브리지타운", TT:"포트오브스페인", GY:"조지타운", SR:"파라마리보", BZ:"벨모판", GD:"세인트조지스", LC:"캐스트리스", DM:"로조", FJ:"수바", PG:"포트모르즈비", WS:"아피아", TO:"누쿠알로파", VU:"포트빌라", SB:"호니아라", FM:"팔리키르", PW:"응게룰무드", MH:"마주로", KI:"사우스타라와", NR:"야렌", TV:"푸나푸티", AU:"캔버라", NZ:"웰링턴", GB:"런던", IE:"더블린", FR:"파리", DE:"베를린", IT:"로마", ES:"마드리드", PT:"리스본", NL:"암스테르담", BE:"브뤼셀", LU:"룩셈부르크", CH:"베른", AT:"빈", PL:"바르샤바", CZ:"프라하", SK:"브라티슬라바", HU:"부다페스트", RO:"부쿠레슈티", BG:"소피아", GR:"아테네", HR:"자그레브", SI:"류블랴나", RS:"베오그라드", BA:"사라예보", ME:"포드고리차", MK:"스코페", AL:"티라나", UA:"키이우", BY:"민스크", MD:"키시너우", RU:"모스크바", EE:"탈린", LV:"리가", LT:"빌뉴스", FI:"헬싱키", SE:"스톡홀름", NO:"오슬로", DK:"코펜하겐", IS:"레이캬비크", MT:"발레타", CY:"니코시아", TR:"앙카라", EG:"카이로", MA:"라바트", DZ:"알제", TN:"튀니스", LY:"트리폴리", SD:"하르툼", ET:"아디스아바바", KE:"나이로비", TZ:"도도마", UG:"캄팔라", RW:"키갈리", BI:"기테가", SO:"모가디슈", DJ:"지부티", ER:"아스마라", ZA:"프리토리아", NA:"빈트후크", BW:"가보로네", ZW:"하라레", ZM:"루사카", MZ:"마푸투", MG:"안타나나리보", MU:"포트루이스", SC:"빅토리아", AO:"루안다", CD:"킨샤사", CG:"브라자빌", GH:"아크라", NG:"아부자", CM:"야운데", SN:"다카르", ML:"바마코", NE:"니아메", TD:"은자메나", BF:"와가두구", CI:"야무수크로", GN:"코나크리", SL:"프리타운", LR:"몬로비아", GM:"반줄", GW:"비사우", CV:"프라이아", BJ:"포르토노보", TG:"로메", GA:"리브르빌", GQ:"말라보", CF:"방기", SS:"주바", SA:"리야드", AE:"아부다비", QA:"도하", KW:"쿠웨이트시티", BH:"마나마", OM:"무스카트", YE:"사나", IQ:"바그다드", IR:"테헤란", IL:"예루살렘", JO:"암만", LB:"베이루트", SY:"다마스쿠스", AF:"카불", KZ:"아스타나", UZ:"타슈켄트", TM:"아시가바트", KG:"비슈케크", TJ:"두샨베", AM:"예레반", AZ:"바쿠", GE:"트빌리시", PS:"라말라" };
 const TOTAL = 10;
 const QUESTION_TIME = 10;
-const INITIAL_QUESTION_TIME = 10;
+const INITIAL_QUESTION_TIME = 20;
 const flag = document.querySelector("#flag");
 const answers = document.querySelector("#answers");
 const textAnswerForm = document.querySelector("#text-answer-form");
@@ -32,6 +32,7 @@ const timerBox = document.querySelector(".timer");
 const timerElement = document.querySelector("#timer");
 const timerProgress = document.querySelector("#timer-progress");
 const voiceStatus = document.querySelector("#voice-status");
+const voiceRetry = document.querySelector("#voice-retry");
 let question = 0;
 let score = 0;
 let streak = 0;
@@ -43,6 +44,10 @@ let usedQuestions = new Set();
 let recognition = null;
 let recognizing = false;
 let startVoiceRecognition = () => { voiceStatus.textContent = "음성 답변을 사용할 수 없습니다. 직접 입력해 주세요."; };
+
+function setVoiceRetryLabel(label = "🎙️ 다시 말하기") {
+  voiceRetry.textContent = label;
+}
 
 scoreboard.hidden = true;
 categoryTabs.hidden = true;
@@ -116,14 +121,17 @@ function speakQuestion() {
     utterance.rate = 1;
     utterance.onstart = () => { voiceStatus.textContent = "문제를 읽는 중입니다…"; };
     utterance.onend = () => {
-      if (category === "initial-country") { voiceStatus.textContent = "초성을 읽었습니다. 나라 이름을 말해 주세요."; startVoiceRecognition(); }
-      else { voiceStatus.textContent = "1~4 중 번호를 말해 주세요."; startVoiceRecognition(); }
+      voiceStatus.textContent = category === "initial-country"
+        ? "초성을 읽었습니다. 아래 버튼을 눌러 나라 이름을 말해 주세요."
+        : "아래 버튼을 눌러 1~4 중 번호를 말해 주세요.";
     };
     utterance.onerror = () => { voiceStatus.textContent = "문제 읽기에 실패했습니다."; };
     window.speechSynthesis.speak(utterance);
   } catch (error) {
     voiceStatus.textContent = "문제 읽기에 실패했습니다.";
-    if (category !== "initial-country") startVoiceRecognition();
+    voiceStatus.textContent = category === "initial-country"
+      ? "초성을 읽었습니다. 아래 버튼을 눌러 나라 이름을 말해 주세요."
+      : "아래 버튼을 눌러 답을 말해 주세요.";
     console.warn("Speech synthesis failed", error);
   }
 }
@@ -146,7 +154,10 @@ function timeOut() {
   if (!current) return;
   const correctAnswer = category === "country-capital" ? CAPITALS[current[1]] : getCorrectAnswer();
   if (category === "initial-country") {
+    if (recognizing && recognition) recognition.stop();
     textAnswer.disabled = true;
+    streak = 0;
+    streakElement.textContent = streak;
     feedback.textContent = `시간 초과입니다. 정답은 ${formatAcceptedAnswers(correctAnswer)}입니다.`;
     feedback.className = "feedback bad";
     next.hidden = false;
@@ -166,6 +177,7 @@ async function newQuestion() {
   if (question >= TOTAL) return finish();
   feedback.textContent = "문제를 준비하는 중입니다…";
   feedback.className = "feedback";
+  setVoiceRetryLabel("🎙️ 음성으로 답하기");
   let correct;
   let imageUrl;
   const pool = category === "country-capital" ? COUNTRIES.filter(([, code]) => CAPITALS[code]) : COUNTRIES;
@@ -240,20 +252,30 @@ function choose(button) {
 
 function submitTextAnswer() {
   if (category !== "initial-country" || !current || textAnswer.disabled) return;
-  stopTimer();
   const chosen = normalizeAnswer(textAnswer.value);
   const acceptedAnswers = getInitialAnswers(current[0]);
-  textAnswer.disabled = true;
+  if (!chosen) {
+    feedback.textContent = "나라 이름을 입력하거나 말해 주세요.";
+    feedback.className = "feedback bad";
+    textAnswer.focus();
+    return;
+  }
   const correct = acceptedAnswers.some((answer) => normalizeAnswer(answer) === chosen);
   if (correct) {
+    stopTimer();
+    if (recognizing && recognition) recognition.stop();
+    textAnswer.disabled = true;
     score += 1;
     streak += 1;
     feedback.textContent = "정답입니다!";
     feedback.className = "feedback good";
   } else {
-    streak = 0;
-    feedback.textContent = `오답입니다. 정답은 ${formatAcceptedAnswers(current[0])}입니다.`;
+    feedback.textContent = "아직 아니에요. 시간이 끝날 때까지 다시 입력해 보세요.";
     feedback.className = "feedback bad";
+    setVoiceRetryLabel();
+    textAnswer.select();
+    textAnswer.focus();
+    return;
   }
   scoreElement.textContent = score;
   streakElement.textContent = streak;
@@ -304,29 +326,59 @@ if (Recognition) {
   recognition.interimResults = false;
   recognition.maxAlternatives = 1;
   recognition.onstart = () => { recognizing = true; voiceStatus.textContent = category === "initial-country" ? "듣고 있습니다… 나라 이름을 말해 주세요." : "듣고 있습니다… 1~4 중 번호를 말해 주세요."; };
-  recognition.onerror = (event) => { recognizing = false; voiceStatus.textContent = event.error === "not-allowed" ? "마이크 권한을 허용해 주세요. 직접 입력도 가능합니다." : "음성을 인식하지 못했습니다. 다시 말하거나 직접 입력해 주세요."; };
+  recognition.onerror = (event) => {
+    recognizing = false;
+    const messages = {
+      "not-allowed": "마이크 권한을 허용해 주세요. 브라우저 사이트 설정에서 마이크를 켤 수 있습니다.",
+      "service-not-allowed": "이 브라우저에서는 음성 인식을 사용할 수 없습니다. Chrome 또는 Edge를 사용해 주세요.",
+      "audio-capture": "마이크를 찾을 수 없습니다. 마이크 권한과 연결 상태를 확인해 주세요.",
+      "no-speech": "음성이 들리지 않았습니다. 버튼을 다시 누르고 말해 주세요.",
+    };
+    voiceStatus.textContent = messages[event.error] || "음성을 인식하지 못했습니다. 버튼을 다시 누르거나 직접 입력해 주세요.";
+    setVoiceRetryLabel();
+  };
   recognition.onend = () => { recognizing = false; };
   recognition.onresult = (event) => {
     const transcript = event.results[0][0].transcript.trim();
     voiceStatus.textContent = `인식: ${transcript}`;
     if (category === "initial-country") {
+      textAnswer.value = transcript;
       const spoken = normalizeAnswer(transcript);
       const match = getInitialAnswers(current[0]).find((answer) => spoken.includes(normalizeAnswer(answer)) || normalizeAnswer(answer).includes(spoken));
-      if (match) { textAnswer.value = match; submitTextAnswer(); }
-      else feedback.textContent = "초성에 맞는 나라 이름을 인식하지 못했습니다. 다시 말하거나 직접 입력해 주세요.";
+      if (match) {
+        const recognizedText = textAnswer.value;
+        textAnswer.value = match;
+        submitTextAnswer();
+        textAnswer.value = recognizedText;
+      }
+      else {
+        feedback.textContent = "초성에 맞는 나라 이름이 아닙니다. 다시 말해 주세요.";
+        feedback.className = "feedback bad";
+        setVoiceRetryLabel();
+      }
       return;
     }
     const koreanNumbers = { "일":"1", "하나":"1", "이":"2", "둘":"2", "삼":"3", "셋":"3", "사":"4", "넷":"4" };
     const spokenNumber = transcript.match(/[1-4]/)?.[0] ?? Object.entries(koreanNumbers).find(([word]) => transcript.includes(word))?.[1];
     const match = spokenNumber ? answers.querySelectorAll("button")[Number(spokenNumber) - 1] : null;
-    if (match) choose(match); else feedback.textContent = "선택지와 일치하는 답을 듣지 못했습니다.";
+    if (match) choose(match);
+    else {
+      feedback.textContent = "선택지와 일치하는 답을 듣지 못했습니다.";
+      setVoiceRetryLabel();
+    }
   };
   startVoiceRecognition = () => {
     if (recognizing) return;
+    if (!current || textAnswer.disabled || timeLeft <= 0) return;
+    if (!window.isSecureContext && location.hostname !== "localhost") {
+      voiceStatus.textContent = "음성 인식은 HTTPS 환경에서만 사용할 수 있습니다.";
+      return;
+    }
     voiceStatus.textContent = "마이크를 준비하는 중입니다…";
     try { recognition.start(); } catch (error) { voiceStatus.textContent = "음성 인식을 시작하지 못했습니다."; console.warn("Speech recognition failed", error); }
   };
 } else {
-  voiceStatus.textContent = "이 브라우저는 음성 답변을 지원하지 않습니다. 직접 입력해 주세요.";
+  voiceStatus.textContent = "이 브라우저는 음성 답변을 지원하지 않습니다. Chrome 또는 Edge를 사용해 주세요.";
 }
+voiceRetry.addEventListener("click", startVoiceRecognition);
 restart.addEventListener("click", () => { question = 0; score = 0; streak = 0; usedQuestions.clear(); scoreElement.textContent = "0"; streakElement.textContent = "0"; result.hidden = true; document.querySelector(".quiz-card").hidden = false; newQuestion(); });

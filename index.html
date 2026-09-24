@@ -6,7 +6,7 @@
     <meta name="description" content="국기를 보고 나라 이름을 맞히는 미니 퀴즈 게임">
     <title>Flag Quiz · 국기 나라 맞히기</title>
     <link rel="stylesheet" href="styles.css?v=6">
-    <script type="module" src="script.js?v=7"></script>
+    <script type="module" src="script.js?v=9"></script>
   </head>
   <body>
     <main class="app-shell">
@@ -34,7 +34,7 @@
         </div>
         <p id="start-message" class="start-message">퀴즈를 선택하면 시작됩니다.</p>
       </section>
-      <div class="timer" aria-live="polite"><span>남은 시간</span><div class="timer-track" aria-hidden="true"><span id="timer-progress"></span></div><strong id="timer">10</strong><span>초</span></div>
+      <div class="timer" aria-live="polite"><span>남은 시간</span><div class="timer-track" aria-hidden="true"><span id="timer-progress"></span></div><strong id="timer">20</strong><span>초</span></div>
 
       <nav class="category-tabs" aria-label="퀴즈 종류">
         <button class="category-tab active" type="button" data-category="flag-country">국기 → 나라</button>
@@ -55,7 +55,7 @@
           <p id="text-answer-help">초성을 보고 나라 이름을 입력하세요.</p>
         </form>
         <p id="feedback" class="feedback" role="status" aria-live="polite"></p>
-        <div class="voice-controls" aria-label="음성 기능"><span id="voice-status" role="status">문제를 읽고 있습니다…</span></div>
+        <div class="voice-controls" aria-label="음성 기능"><span id="voice-status" role="status">문제를 읽고 있습니다…</span><button id="voice-retry" type="button">🎙️ 음성으로 답하기</button></div>
         <button id="next" class="next-button" type="button" hidden>다음 문제 →</button>
       </section>
 
