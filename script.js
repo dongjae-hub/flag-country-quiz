@@ -103,6 +103,7 @@ function startTimer() {
 function questionText() {
   if (category === "flag-country") return "이 국기는 어느 나라일까요?";
   if (category === "country-flag") return `${current[0]}의 국기는 무엇일까요?`;
+  if (category === "capital-country") return `${CAPITALS[current[1]]}은(는) 어느 나라의 수도일까요?`;
   if (category === "initial-country") return `초성 ${getInitials(current[0])}. 이 나라는 어디일까요?`;
   return `${current[0]}의 수도는 어디일까요?`;
 }
@@ -179,11 +180,11 @@ async function newQuestion() {
   setVoiceRetryLabel("🎙️ 음성으로 답하기");
   let correct;
   let imageUrl;
-  const pool = category === "country-capital" ? COUNTRIES.filter(([, code]) => CAPITALS[code]) : COUNTRIES;
+  const pool = ["country-capital", "capital-country"].includes(category) ? COUNTRIES.filter(([, code]) => CAPITALS[code]) : COUNTRIES;
   const availablePool = pool.filter(([name]) => !usedQuestions.has(name));
   if (!availablePool.length) return finish();
   for (const candidate of shuffle(availablePool)) {
-    if (category === "country-capital" || category === "initial-country") { correct = candidate; break; }
+    if (["country-capital", "capital-country", "initial-country"].includes(category)) { correct = candidate; break; }
     try {
       imageUrl = await loadFlag(candidate[1]);
       correct = candidate;
@@ -209,6 +210,8 @@ async function newQuestion() {
     document.querySelector("#prompt").textContent = "이 국기는 어느 나라일까요?";
   } else if (category === "country-flag") {
     document.querySelector("#prompt").innerHTML = `<strong>${correct[0]}</strong>의 국기는 무엇일까요?`;
+  } else if (category === "capital-country") {
+    document.querySelector("#prompt").innerHTML = `<strong>${CAPITALS[correct[1]]}</strong>은(는) 어느 나라의 수도일까요?`;
   } else if (category === "initial-country") {
     document.querySelector("#prompt").innerHTML = `초성 <strong>${getInitials(correct[0])}</strong>의 나라는 무엇일까요?`;
     recognizedAnswer.textContent = "-";
@@ -226,7 +229,7 @@ async function newQuestion() {
     if (urls.some((url) => !url)) return newQuestion();
     answers.innerHTML = options.map(([name], index) => `<button class="answer" type="button" data-answer="${name}" data-country="${name}"><span class="choice-number">${index + 1}</span><img class="answer-flag" src="${urls[index]}" alt="${name} 국기"></button>`).join("");
   } else {
-    answers.innerHTML = shuffle([correct, ...wrong]).map(([name, code], index) => `<button class="answer" type="button" data-answer="${category === "country-capital" ? CAPITALS[code] : name}" data-country="${name}"><span class="choice-number">${index + 1}</span>${category === "country-capital" ? CAPITALS[code] : name}</button>`).join("");
+    answers.innerHTML = shuffle([correct, ...wrong]).map(([name, code], index) => { const capitalQuestion = category === "country-capital"; return `<button class="answer" type="button" data-answer="${capitalQuestion ? CAPITALS[code] : name}" data-country="${name}"><span class="choice-number">${index + 1}</span>${capitalQuestion ? CAPITALS[code] : name}</button>`; }).join("");
   }
   startTimer();
   speakQuestion();
