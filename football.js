@@ -59,7 +59,7 @@ async function fetchFreshRanking() { const schedules = await fetchJson(scheduleE
 function makeTeam(row) { const english = row.TeamName?.find((item) => item.Locale !== "ko-KR")?.Description || row.TeamName?.[0]?.Description || row.IdCountry; const name = row.TeamName?.find((item) => item.Locale === "ko-KR")?.Description || KOREAN_NAMES[english] || english; const image = new Image(); image.onload = () => { image.failed = false; if (race) drawFrame(); else if (activeTeams.length) drawPreview(); }; image.onerror = () => { image.failed = true; if (race) drawFrame(); else if (activeTeams.length) drawPreview(); }; image.src = standingsFlagUrl(row.IdCountry); return { rank: row.Rank, name, code: row.IdCountry, points: row.DecimalTotalPoints, image }; }
 function laneY(index, count) { return TRACK.top + ((TRACK.bottom - TRACK.top) * (index + 0.5)) / count; }
 function startPosition(index, count) { const columns = Math.min(5, Math.max(1, Math.ceil(Math.sqrt(count)))); const rows = Math.ceil(count / columns); return { x: TRACK.left + 68 + (index % columns) * 132, y: laneY(Math.floor(index / columns), rows) }; }
-function radiusFor(rank) { return 36 + ((Math.max(1, Math.min(100, rank)) - 1) / 99) * 24; }
+function radiusFor(rank) { return 24 + ((Math.max(1, Math.min(100, rank)) - 1) / 99) * 16; }
 function createObstacles() {
   const obstacles = [];
   for (let index = 0; index < 140; index += 1) {
